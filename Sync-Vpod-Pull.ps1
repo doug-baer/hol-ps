@@ -2,8 +2,8 @@
 .NOTES
   Name:     Sync-VPod-Pull
   Author:   Doug Baer
-  Version:  2.0b4
-  Date:     2014-07-29
+  Version:  2.0
+  Date:     2014-09-20
 
 .SYNOPSIS
   Efficiently synchronize two OVF exports between sites using specified local data as the seed.
@@ -52,6 +52,7 @@ Sync-vPod-Pull.ps1 -OldName HOL-SDC-1400-v1 -NewName HOL-SDC-1400-v2 -CatalogHos
 .CHANGELOG
   2.0b2 - Added defaults for all parameters but OldName and NewName
   2.0b4 - Removed extraneous "/" from ovfFileRemoteEsc
+  2.0   - Check for empty name before rsync
 
 #>
 
@@ -77,15 +78,15 @@ param(
   ValueFromPipeline=$False)]
   [System.String]$LocalSeed = 'E:\Seeds',
 
-  [Parameter(Position=4,Mandatory=$false,HelpMessage="Path to the library files (local)",
+  [Parameter(Position=5,Mandatory=$false,HelpMessage="Path to the library files (local)",
   ValueFromPipeline=$False)]
   [System.String]$LocalLib = 'E:\HOL-Library',
 
-  [Parameter(Position=4,Mandatory=$false,HelpMessage="Path to the library files (local)",
+  [Parameter(Position=6,Mandatory=$false,HelpMessage="Path to the library files (local)",
   ValueFromPipeline=$False)]
   [System.String]$SSHuser = "catalog",
 
-  [Parameter(Position=5,Mandatory=$false,HelpMessage="Path to output files",
+  [Parameter(Position=7,Mandatory=$false,HelpMessage="Path to output files",
   ValueFromPipeline=$False)]
   [System.String]$OutputPath = 'E:\LabMaps'
 )
@@ -387,7 +388,9 @@ PROCESS {
   if( $createFile ) { $syncCmd | Out-File $fileName -Append }
   
   #Pull the ripcord!
-  Invoke-Expression -command $command 
+  If ( ($OldName -ne '') -and ($NewName -ne '') ) {
+    Invoke-Expression -command $command 
+  }
   
   # Remove old Seed directory (clean up)
   #  arbitrary value of >5 files remaining to limit exposure of accidental deletion
