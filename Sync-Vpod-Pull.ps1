@@ -113,9 +113,6 @@ BEGIN {
   
   ### Setup the SSH options we need (cygwin)
   $sshComputer = $CatalogHost
-  #$sshUser = "catalog"
-  #$sshKey = "/home/catalog/.ssh/id_dsa"
-  #$sshOptions = "-i $sshKey "
   $sshOptions = " "
 
   # prepend "/cygdrive/", lowercase drive letter, flip slashes, escape spaces
