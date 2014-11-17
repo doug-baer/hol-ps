@@ -1,6 +1,6 @@
 ##############################################################################
 ##
-## LabStartup.ps1, v3.04, October 2014 (Win 2012 version)
+## LabStartup.ps1, v3.05, November 2014 (Win 2012 version) 
 ##
 ##############################################################################
 <#
@@ -41,9 +41,9 @@
 	http://blogs.vmware.com/hol
 #>
 
-############################################################################## 
+##############################################################################
 ##### User Variables
-############################################################################## 
+##############################################################################
 $vcserver = 'vcsa-01a.corp.local'
 $vcuser = 'CORP\Administrator'
 $password = 'VMware1!'
@@ -86,7 +86,7 @@ $TCPservices = @(
 	'esx-02a.corp.local:22'
 	)
 
-#URLs to be checked for specified text in response 
+#URLs to be checked for specified text in response
 $URLs = @{
 	'https://vcsa-01a.corp.local:9443/vsphere-client/' = 'vSphere Web Client'
 	}
@@ -98,9 +98,17 @@ If(Test-Path $ff) { Remove-Item $ff | Out-Null }
 ##############################################################################
 # REPORT VPOD status
 ##############################################################################
-$YEAR  = '14' #two digits representing the content year
-$SKU   = '23' #the unique part of the SKU: digits after the year, no leading 0s!
-$IPNET = "192.$YEAR.$SKU"
+$labSKU = 'HOL-SDC-1423'
+$labId = $labSKU.Substring($labSKU.Length - 4)
+#$YEAR  = '14' #two digits representing the content year
+#$SKU   = '23' #the unique part of the SKU: digits after the year, no leading 0s!
+$labYear = $labId.Substring(0,2)
+$sku  = $labId.Substring(2,2)
+If ($sku.substring(0,1) -eq '0') {
+	#strip leading zero if present
+	$sku = $sku.substring(1,1)
+}
+$IPNET = "192.$labYear.$sku"
 $statusTable = @{
  'STARTING' = 1
  'TIMEOUT'  = 2
@@ -120,11 +128,12 @@ $statusTable = @{
 
 Function Report-VpodStatus ([string] $newStatus) {
   $server = 'router.corp.local'
-  $newStatus = "$IPNET." + $statusTable[$newStatus] + '/32'
+  $newStatus = "$IPNET." + $statusTable[$newStatus]
+  $bcast = "$IPNET." + "255"
   #replace the IP address on the vpodrouter's 6th NIC with our indicator code
-  $lcmd = "/sbin/ip -s -s a f to 192.0.0.0/8 dev eth5 && /sbin/ip addr add $newStatus dev eth5"
-#  $lcmd = "/sbin/ip addr del $currentStatus dev eth5 && /sbin/ip addr add $newStatus dev eth5"
-  $msg = Invoke-Plink -remoteHost $server -login $linuxuser -passwd $linuxpassword -command '$lcmd'
+  $lcmd = "sudo /sbin/ifconfig eth5 broadcast $bcast netmask 255.255.255.0 $newStatus"
+  #Write-Host $lcmd
+  $msg = Invoke-Plink -remoteHost $server -login holuser -passwd $linuxpassword -command '$lcmd'
   $currentStatus = $newStatus
 
 } # END Report-VpodStatus
@@ -141,17 +150,17 @@ Function Write-Progress ([string] $msg, [string] $code) {
 
 #Load the VMware PowerCLI tools
 Try {
-  Add-PSSnapin VMware.VimAutomation.Core -ErrorAction 1
-}
+  Add-PSSnapin VMware.VimAutomation.Core -ErrorAction 1 
+} 
 Catch {
   Write-Host "No PowerCLI found, unable to continue."
   Write-Progress "FAIL-No PowerCLI" 'FAIL-1'
   Exit
 }
 
-############################################################################## 
+##############################################################################
 ##### Support Functions
-############################################################################## 
+##############################################################################
 Function Connect-VC ([string]$server, [string]$username, [string]$password, [REF]$result) {
 <#
 	This function attempts once to connect to the specified vCenter 
@@ -193,7 +202,7 @@ Function Test-URL ([string]$url, [string]$lookup, [REF]$result) {
 <#
 	This function tries to access the specified URL and looks for the string
 	specified in the resulting HTML
-	It sets the $result variable to 'success' or 'fail' based on the result
+	It sets the $result variable to 'success' or 'fail' based on the result 
 #>
 	Try {
 		$wc = (new-object net.webclient).DownloadString($url)
@@ -220,11 +229,11 @@ Function Start-WindowsService ([string]$server, [string]$service, [int]$waitsec,
 #>
 	Try {
 		Start-Service -InputObject (Get-Service -ComputerName $server -Name $service)
-	LabStartup-Sleep $waitsec
-	$svc = Get-service -computerName $server -name $service
-	If($svc.Status -eq "Running") {
-		$result.value = "success" 
-	}
+		LabStartup-Sleep $waitsec
+		$svc = Get-service -computerName $server -name $service
+		If($svc.Status -eq "Running") {
+			$result.value = "success" 
+		}
 	}
 	Catch {
 		Write-Host "Failed to restart $service on $server"
@@ -240,11 +249,11 @@ Function Restart-WindowsService ([string]$server, [string]$service, [int]$waitse
 #>
 	Try {
 		Restart-Service -InputObject (Get-Service -ComputerName $server -Name $service)
-	LabStartup-Sleep $sleepSeconds
-	$svc = Get-service -computerName $server -name $service
-	If($svc.Status -eq "Running") {
-		$result.value = "success" 
-	}
+		LabStartup-Sleep $sleepSeconds
+		$svc = Get-service -computerName $server -name $service
+		If($svc.Status -eq "Running") {
+			$result.value = "success" 
+		}
 	}
 	Catch {
 		Write-Host "Failed to restart $service on $server"
@@ -260,11 +269,11 @@ Function Stop-WindowsService ([string]$server, [string]$service, [int]$waitsec, 
 #>
 	Try {
 		Stop-Service -InputObject (Get-Service -ComputerName $server -Name $service)
-	LabStartup-Sleep $waitsec
-	$svc = Get-Service -ComputerName $server -name $service
-	If($svc.Status -eq "Stopped") {
-		$result.value = "success" 
-	}
+		LabStartup-Sleep $waitsec
+		$svc = Get-Service -ComputerName $server -name $service
+		If($svc.Status -eq "Stopped") {
+			$result.value = "success" 
+		}
 	}
 	Catch {
 		Write-Host "Failed to stop $service on $server"
@@ -277,9 +286,9 @@ Function Query-WindowsService ([string]$server, [string]$service, [REF]$result) 
 	This function returns the current running state of a Windows service
 #>
 	Try {
-	$svc = Get-Service -ComputerName $server -name $service
-	$result.value = 'success'
-	return $svc.Status 
+		$svc = Get-Service -ComputerName $server -name $service
+		$result.value = 'success'
+		return $svc.Status 
 	}
 	Catch {
 		Write-Host "Failed to query $service on $server"
@@ -297,7 +306,7 @@ Function Invoke-Plink ([string]$remoteHost, [string]$login, [string]$passwd, [st
 Function Invoke-PlinkKey ([string]$puttySession, [string]$command) {
 <#
 	This function executes the specified command on the remote host via SSH
-	This overload utilizes key-based authentication and a saved Putty session
+	utilizing key-based authentication and a saved PuTTY session
 	Rather than a username/password combination
 #>
 	Invoke-Expression "Echo Y | c:\hol\plink.exe -ssh -load $puttySession $command"
@@ -312,7 +321,7 @@ Function Start-LinuxService ([string]$server, [string]$service, [int]$waitsec, [
 	$lcmd1 = "service $service start"
 	$lcmd2 = "service $service status"
 	Try {
-		$msg = Invoke-Plink -remoteHost $server -login $linuxuser -passwd $linuxpassword -command $lcmd1 
+		$msg = Invoke-Plink -remoteHost $server -login $linuxuser -passwd $linuxpassword -command $lcmd1
 		LabStartup-Sleep $waitsec
 		$msg = Invoke-Plink -remoteHost $server -login $linuxuser -passwd $linuxpassword -command $lcmd2
 		if( $msg -like "* is running" ) {
@@ -333,7 +342,7 @@ Function Restart-LinuxService ([string]$server, [string]$service, [int]$waitsec,
 	$lcmd1 = "service $service restart"
 	$lcmd2 = "service $service status"
 	Try {
-		$msg = Invoke-Plink -remoteHost $server -login $linuxuser -passwd $linuxpassword -command $lcmd1 
+		$msg = Invoke-Plink -remoteHost $server -login $linuxuser -passwd $linuxpassword -command $lcmd1
 		LabStartup-Sleep $waitsec
 		$msg = Invoke-Plink -remoteHost $server -login $linuxuser -passwd $linuxpassword -command $lcmd2
 		if( $msg -like "* is running" ) {
@@ -354,7 +363,7 @@ Function Stop-LinuxService ([string]$server, [string]$service, [int]$waitsec, [R
 	$lcmd1 = "service $service stop"
 	$lcmd2 = "service $service status"
 	Try {
-		$msg = Invoke-Plink -remoteHost $server -login $linuxuser -passwd $linuxpassword -command $lcmd1 
+		$msg = Invoke-Plink -remoteHost $server -login $linuxuser -passwd $linuxpassword -command $lcmd1
 		LabStartup-Sleep $waitsec
 		$msg = Invoke-Plink -remoteHost $server -login $linuxuser -passwd $linuxpassword -command $lcmd2
 		if( $msg -like "* is not running" ) {
@@ -373,7 +382,7 @@ Function Query-LinuxService ([string]$server, [string]$service, [REF]$result) {
 #>
 	$lcmd1 = "service $service status"
 	Try {
-		$msg = Invoke-Plink -remoteHost $server -login $linuxuser -passwd $linuxpassword -command $lcmd1 
+		$msg = Invoke-Plink -remoteHost $server -login $linuxuser -passwd $linuxpassword -command $lcmd1
 		if( $msg -like "* is not running" ) {
 			$result.value = "success"
 		return "Stopped"
@@ -423,7 +432,7 @@ Function Get-RuntimeSeconds ( [datetime]$start ) {
 
 Function LabStartup-Sleep ( [int] $sleepSecs ) {
 <#
-  Each sleep is an opportunity to check for TIMEOUT and act appropriately
+  Each sleep is an opportunity to check for TIMEOUT and act appropriately 
 #>
   $currentRunningSeconds = Get-RuntimeSeconds $startTime
   $currentRunningMinutes = $currentRunningSeconds / 60
@@ -440,27 +449,25 @@ Function LabStartup-Sleep ( [int] $sleepSecs ) {
   }
 } #End LabStartup-Sleep
 
-############################################################################## 
+##############################################################################
 ##### Main Script - Base vPod
-############################################################################## 
+##############################################################################
 
-#Please leave this line here to enable scale testing automation
-If( Start-AutoLab ) { exit }
-Write-Host "No autolab.ps1 found, continuing."
+#Please leave this line here to enable scale testing automation 
+If( Start-AutoLab ) { exit } Write-Host "No autolab.ps1 found, continuing."
 
 #Remove the next two lines when you implement this script for your pod
-#Set-Content -Value "Not Implemented" -Path $statusFile
-#exit
-
+Set-Content -Value "Not Implemented" -Path $statusFile
+exit
 
 #Report Initial State
 Write-Output "Beginning Main script"
 Write-Progress "Not Ready" 'STARTING'
 
 
-############################################################################## 
-##### Lab Startup - STEP #1 (Infrastructure)
-############################################################################## 
+##############################################################################
+##### Lab Startup - STEP #1 (Infrastructure) 
+##############################################################################
 
 #Testing vESXi hosts are online
 Write-Progress "Checking vESXi" 'STARTING'
@@ -482,12 +489,11 @@ While ($result -eq "fail" ) {
 }
 
 
-############################################################################## 
-##### Lab Startup - STEP #2 (Starting vVMs)
-############################################################################## 
+##############################################################################
+##### Lab Startup - STEP #2 (Starting vVMs) 
+##############################################################################
 
-# Report Progress (Step 2)
-Write-Progress "Starting vVMs" 'GOOD-1'
+Write-Progress "Starting vVMs" 'STARTING'
 
 # Start the nested VMs - wait for each vVM to report 'PoweredOn'
 Foreach ($vmName in $VMs) {
@@ -501,14 +507,13 @@ Foreach ($vmName in $VMs) {
 	}
 }
 
-############################################################################## 
-##### Lab Startup - STEP #3 (Testing Ports & Services)
-############################################################################## 
+##############################################################################
+##### Lab Startup - STEP #3 (Testing Ports & Services) 
+##############################################################################
 
-#Report Progress
-Write-Progress "Testing TCP ports" 'GOOD-2'
+Write-Progress "Testing TCP ports" 'GOOD-1'
 
-#Testing services are answering on TCP ports
+#Testing services are answering on TCP ports 
 Foreach ($service in $TCPservices) {
 	($server,$port) = $service.Split(":")
 	$result = "fail"
@@ -518,7 +523,6 @@ Foreach ($service in $TCPservices) {
 	}
 }
 
-#Report Progress
 Write-Progress "Checking URLs" 'GOOD-2'
 
 #Testing URLs
@@ -529,14 +533,14 @@ Foreach ($url in $($URLs.Keys)) {
 		LabStartup-Sleep $sleepSeconds
 	}
 }
+
 Write-Output "$(Get-Date) disconnecting from vCenter..."
 Disconnect-VIServer -Confirm:$false
 
-############################################################################## 
-##### Lab Startup - STEP #4 (Start/Restart Services)
-############################################################################## 
+##############################################################################
+##### Lab Startup - STEP #4 (Start/Restart Services) 
+##############################################################################
 
-#Report Progress
 Write-Progress "Manage Win Svcs" 'GOOD-3'
 
 # Restart Windows services on remote machines
@@ -552,7 +556,6 @@ Foreach ($service in $WINservices) {
 
 Write-Output "$(Get-Date) Finished Restart-WinServices"
 
-#Report Progress
 Write-Progress "Manage Linux Svcs" 'GOOD-3'
 
 # Restart Linux services on remote machines
@@ -575,4 +578,4 @@ Write-Output "$(Get-Date) Finished Restart-LinuxServices"
 Write-Progress "Ready" 'READY'
 Write-Output "$(Get-Date) LabStartup Finished"
 
-############################################################################## 
+##############################################################################
