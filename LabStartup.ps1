@@ -1,6 +1,6 @@
 ##############################################################################
 ##
-## LabStartup.ps1, v3.05, November 2014 (Win 2012 version) 
+## LabStartup.ps1, v3.1, November 2014 (Win 2012 version) 
 ##
 ##############################################################################
 <#
@@ -44,17 +44,20 @@
 ##############################################################################
 ##### User Variables
 ##############################################################################
-$vcserver = 'vcsa-01a.corp.local'
+##############################################################################
+##### User Variables
+##############################################################################
+$startTime = $(Get-Date)
+$vcserver = "vcsa-01a.corp.local"
 $vcuser = 'CORP\Administrator'
 $password = 'VMware1!'
 $linuxuser = 'root'
 $linuxpassword = 'VMware1!'
 $statusFile = "C:\HOL\startup_status.txt"
 $sleepSeconds = 10
-$maxMinutesBeforeFail = '30' # if still running this long, fail the pod
+$maxMinutesBeforeFail = 30 # if still running this long, fail the pod
 $result = 'fail'
-$startTime = $(Get-Date)
-
+$desktopInfo = 'C:\DesktopInfo\desktopinfo.ini'
 Write-Output "$startTime beginning LabStartup"
 
 ### Populate the following arrays with values appropriate to your lab
@@ -67,12 +70,12 @@ $ESXiHosts = @(
 
 #Windows Services to be checked / started
 $WINservices = @(
-	'controlcenter.corp.local:VMTools'
+#	'controlcenter.corp.local:VMTools'
 )
 
 #Linux Services to be checked / started
 $LINservices = @(
-	'router.corp.local:vmware-tools'
+#	'router.corp.local:vmware-tools'
 )
 
 #Virtual Machines to be powered on
@@ -89,6 +92,7 @@ $TCPservices = @(
 #URLs to be checked for specified text in response
 $URLs = @{
 	'https://vcsa-01a.corp.local:9443/vsphere-client/' = 'vSphere Web Client'
+	'http://stga-01a.corp.local/account/login' = 'FreeNAS'
 	}
 
 #Remove the file that causes a "reset" message in Firefox (2012 CC path)
@@ -98,17 +102,22 @@ If(Test-Path $ff) { Remove-Item $ff | Out-Null }
 ##############################################################################
 # REPORT VPOD status
 ##############################################################################
-$labSKU = 'HOL-SDC-1423'
-$labId = $labSKU.Substring($labSKU.Length - 4)
-#$YEAR  = '14' #two digits representing the content year
-#$SKU   = '23' #the unique part of the SKU: digits after the year, no leading 0s!
-$labYear = $labId.Substring(0,2)
-$sku  = $labId.Substring(2,2)
-If ($sku.substring(0,1) -eq '0') {
-	#strip leading zero if present
-	$sku = $sku.substring(1,1)
+If( Test-Path $desktopInfo ) {
+	# read the desktopInfo.ini configuration file and find the line that begins with "HEADER=active:1"
+	$TMP = Select-String $desktopInfo -pattern "^HEADER=active:1"
+	# split the line on the ":"
+	$TMP = $TMP.Line.Split(":")
+	# split the last field on the "-"
+	$TMP = $TMP[4].Split("-")
+	# the YEAR is the first two characters of the last field as an integer
+	$YEAR = [int]$TMP[2].SubString(0,2)
+	# the SKU is the rest of the last field beginning with the third character as an integer (no leading zeroes)
+	$SKU = [int]$TMP[2].SubString(2)
+	$IPNET = "192.$YEAR.$SKU"
+} Else {
+	# Something went wrong. Use the default IP network.
+	$IPNET= '192.168.250'
 }
-$IPNET = "192.$labYear.$sku"
 $statusTable = @{
  'STARTING' = 1
  'TIMEOUT'  = 2
@@ -142,7 +151,13 @@ Function Report-VpodStatus ([string] $newStatus) {
 
 Function Write-Progress ([string] $msg, [string] $code) {
 	$myTime = $(Get-Date)
-	Set-Content -Value "$($myTime.hour):$($myTime.minute) $msg" -Path $statusFile
+	If( $code -eq 'READY' ) {
+		$dateCode = "{0:D2}/{1:D2} {2:D2}:{3:D2}" -f $myTime.month,$myTime.day,$myTime.hour,$myTime.minute
+		Set-Content -Value "$msg $dateCode" -Path $statusFile
+	} Else {
+		$dateCode = "{0:D2}:{1:D2}" -f $myTime.hour,$myTime.minute
+		Set-Content -Value "$dateCode $msg " -Path $statusFile
+	}
 	Report-VpodStatus $code
 }#End Write-Progress
 
@@ -205,17 +220,17 @@ Function Test-URL ([string]$url, [string]$lookup, [REF]$result) {
 	It sets the $result variable to 'success' or 'fail' based on the result 
 #>
 	Try {
-		$wc = (new-object net.webclient).DownloadString($url)
+		$wc = (New-Object Net.WebClient).DownloadString($url)
 		If( $wc -match $lookup ) {
-			Write-Host "Successfully connected to $url"
+			Write-Output "Successfully connected to $url"
 			$result.value = "success"
 		} Else {
-			Write-Host "Connected to $url but lookup did not match"
+			Write-Output "Connected to $url but lookup ( $lookup ) did not match"
 			$result.value = "fail"
 		}
 	}
 	Catch {
-		write-host -fore Red "URL $url not accessible"
+		Write-Output "URL $url not accessible"
 		$result.value = "fail"
 	}
 } #End Test-URL
@@ -249,7 +264,7 @@ Function Restart-WindowsService ([string]$server, [string]$service, [int]$waitse
 #>
 	Try {
 		Restart-Service -InputObject (Get-Service -ComputerName $server -Name $service)
-		LabStartup-Sleep $sleepSeconds
+		LabStartup-Sleep $waitsec
 		$svc = Get-service -computerName $server -name $service
 		If($svc.Status -eq "Running") {
 			$result.value = "success" 
@@ -456,7 +471,7 @@ Function LabStartup-Sleep ( [int] $sleepSecs ) {
 #Please leave this line here to enable scale testing automation 
 If( Start-AutoLab ) { exit } Write-Host "No autolab.ps1 found, continuing."
 
-#Remove the next two lines when you implement this script for your pod
+#ATTENTION: Remove the next two lines when you implement this script for your pod
 Set-Content -Value "Not Implemented" -Path $statusFile
 exit
 
@@ -497,15 +512,19 @@ Write-Progress "Starting vVMs" 'STARTING'
 
 # Start the nested VMs - wait for each vVM to report 'PoweredOn'
 Foreach ($vmName in $VMs) {
-	Write-Host "Starting $vmName"
 	$vm = Get-VM $vmName
-	While ($vm.PowerState -ne "PoweredOn" ) {
+	$powerState = [string]$vm.PowerState
+	While ( !($powerState.Contains("PoweredOn")) ) {
 		Write-Host "Starting VM" $vm.name
 		$vm | Start-VM -RunAsync
 	LabStartup-Sleep $sleepSeconds
 	$vm = Get-VM $vmName
+	$powerState = [string]$vm.PowerState
 	}
 }
+
+Write-Output "$(Get-Date) disconnecting from $vcserver ..."
+Disconnect-VIServer -Confirm:$false
 
 ##############################################################################
 ##### Lab Startup - STEP #3 (Testing Ports & Services) 
@@ -533,9 +552,6 @@ Foreach ($url in $($URLs.Keys)) {
 		LabStartup-Sleep $sleepSeconds
 	}
 }
-
-Write-Output "$(Get-Date) disconnecting from vCenter..."
-Disconnect-VIServer -Confirm:$false
 
 ##############################################################################
 ##### Lab Startup - STEP #4 (Start/Restart Services) 
