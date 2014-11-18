@@ -1,6 +1,6 @@
 ##############################################################################
 ##
-## LabStartup.ps1, v3.1, November 2014 (Win 2012 version) 
+## LabStartup.ps1, v3.2, November 2014 (Win 2012 version) 
 ##
 ##############################################################################
 <#
@@ -95,8 +95,16 @@ $URLs = @{
 	'http://stga-01a.corp.local/account/login' = 'FreeNAS'
 	}
 
-#Remove the file that causes a "reset" message in Firefox (2012 CC path)
-$ff="C:\Users\Administrator\AppData\Roaming\Mozilla\Firefox\Profiles\5qs0vngr.default\parent.lock" 
+#Remove the file that causes a "reset" message in Firefox
+$OSversion =  (Get-CimInstance Win32_OperatingSystem).version
+If( $OSversion -eq '6.3.9600' ) {
+	#Windows 2012
+	$ff='C:\Users\Administrator\AppData\Roaming\Mozilla\Firefox\Profiles\5qs0vngr.default\parent.lock'
+}
+Else {
+	#Windows 2008, Other?
+	$ff='C:\Users\Administrator\AppData\Roaming\Mozilla\Firefox\Profiles\cmowrpil.default\parent.lock'
+}
 If(Test-Path $ff) { Remove-Item $ff | Out-Null }
 
 ##############################################################################
@@ -109,42 +117,53 @@ If( Test-Path $desktopInfo ) {
 	$TMP = $TMP.Line.Split(":")
 	# split the last field on the "-"
 	$TMP = $TMP[4].Split("-")
+	Try {
 	# the YEAR is the first two characters of the last field as an integer
-	$YEAR = [int]$TMP[2].SubString(0,2)
-	# the SKU is the rest of the last field beginning with the third character as an integer (no leading zeroes)
-	$SKU = [int]$TMP[2].SubString(2)
-	$IPNET = "192.$YEAR.$SKU"
+		$YEAR = [int]$TMP[2].SubString(0,2)
+		# the SKU is the rest of the last field beginning with the third character as an integer (no leading zeroes)
+		$SKU = [int]$TMP[2].SubString(2)
+		$IPNET = "192.$YEAR.$SKU"
+	} 
+	Catch {
+		# Problems: Use the default IP network.
+		Write-Output "Lab SKU parsing Failure: $TMP"
+		$IPNET= '192.168.250'
+		# Do we fail the script or let it slide?
+		# Write-Progress "FAIL-Bad Lab SKU" 'FAIL-1'
+	}
 } Else {
 	# Something went wrong. Use the default IP network.
 	$IPNET= '192.168.250'
+	# Do we fail the script or let it slide?
+	# Write-Progress "FAIL-No DesktopInfo" 'FAIL-1'
 }
+
 $statusTable = @{
- 'STARTING' = 1
- 'TIMEOUT'  = 2
- 'GOOD-1'   = 3
- 'GOOD-2'   = 4
- 'GOOD-3'   = 5
- 'GOOD-4'   = 6
- 'GOOD-5'   = 7
- 'FAIL-1'   = 103
- 'FAIL-2'   = 104
- 'FAIL-3'   = 105
- 'FAIL-4'   = 106
- 'FAIL-5'   = 107
+ 'GOOD-1'   = 1
+ 'GOOD-2'   = 2
+ 'GOOD-3'   = 3
+ 'GOOD-4'   = 4
+ 'GOOD-5'   = 5
+ 'FAIL-1'   = 101
+ 'FAIL-2'   = 102
+ 'FAIL-3'   = 103
+ 'FAIL-4'   = 104
+ 'FAIL-5'   = 105
  'READY'    = 200
  'AUTOLAB'  = 201
+ 'STARTING' = 202
+ 'TIMEOUT'  = 203
 }
 
 Function Report-VpodStatus ([string] $newStatus) {
-  $server = 'router.corp.local'
-  $newStatus = "$IPNET." + $statusTable[$newStatus]
-  $bcast = "$IPNET." + "255"
-  #replace the IP address on the vpodrouter's 6th NIC with our indicator code
-  $lcmd = "sudo /sbin/ifconfig eth5 broadcast $bcast netmask 255.255.255.0 $newStatus"
-  #Write-Host $lcmd
-  $msg = Invoke-Plink -remoteHost $server -login holuser -passwd $linuxpassword -command '$lcmd'
-  $currentStatus = $newStatus
-
+	$server = 'router.corp.local'
+	$newStatus = "$IPNET." + $statusTable[$newStatus]
+	$bcast = "$IPNET." + "255"
+	#replace the IP address on the vpodrouter's 6th NIC with our indicator code
+	$lcmd = "sudo /sbin/ifconfig eth5 broadcast $bcast netmask 255.255.255.0 $newStatus"
+	#Write-Host $lcmd
+	$msg = Invoke-Plink -remoteHost $server -login holuser -passwd $linuxpassword -command '$lcmd'
+	$currentStatus = $newStatus
 } # END Report-VpodStatus
 
 ##############################################################################
