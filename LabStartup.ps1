@@ -1,6 +1,6 @@
 ##############################################################################
 ##
-## LabStartup.ps1, v3.3.1, November 2014 (unified version) 
+## LabStartup.ps1, v3.3.2, November 2014 (unified version) 
 ##
 ##############################################################################
 <#
@@ -41,9 +41,6 @@
 	http://blogs.vmware.com/hol
 #>
 
-##############################################################################
-##### User Variables
-##############################################################################
 ##############################################################################
 ##### User Variables
 ##############################################################################
@@ -97,7 +94,7 @@ $URLs = @{
 
 #Remove the file that causes a "reset" message in Firefox
 $OSversion =  (Get-WmiObject -class Win32_OperatingSystem).Caption
-If( $OSversion.Contains("2012" ) {
+If( $OSversion.Contains("2012") ){
 #Windows 2012
 	$ff='C:\Users\Administrator\AppData\Roaming\Mozilla\Firefox\Profiles\5qs0vngr.default\parent.lock'
 }
@@ -154,17 +151,18 @@ If( Test-Path $desktopInfo ) {
 		$IPNET = "192.$YEAR.$SKU"
 	} 
 	Catch {
-		# Problems: Use the default IP network.
+		# Problems: Use the default IP network and FAIL
 		Write-Output "Lab SKU parsing Failure: $TMP"
 		$IPNET= '192.168.250'
-		# Do we fail the script or let it slide?
+		# fail the script 
 		Write-Progress "FAIL-Bad Lab SKU" 'FAIL-1'
+		Exit
 	}
 } Else {
-	# Something went wrong. Use the default IP network.
+	# Something went wrong. Use the default IP network and FAIL
 	$IPNET= '192.168.250'
-	# Do we fail the script or let it slide?
 	Write-Progress "FAIL-No DesktopInfo" 'FAIL-1'
+	Exit
 }
 
 ##############################################################################
