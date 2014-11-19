@@ -1,6 +1,6 @@
 ##############################################################################
 ##
-## LabStartup.ps1, v3.3, November 2014 (unified version) 
+## LabStartup.ps1, v3.3.1, November 2014 (unified version) 
 ##
 ##############################################################################
 <#
@@ -96,9 +96,9 @@ $URLs = @{
 	}
 
 #Remove the file that causes a "reset" message in Firefox
-$OSversion =  (Get-CimInstance Win32_OperatingSystem).version
-If( $OSversion -eq '6.3.9600' ) {
-	#Windows 2012
+$OSversion =  (Get-WmiObject -class Win32_OperatingSystem).Caption
+If( $OSversion.Contains("2012" ) {
+#Windows 2012
 	$ff='C:\Users\Administrator\AppData\Roaming\Mozilla\Firefox\Profiles\5qs0vngr.default\parent.lock'
 }
 Else {
@@ -110,34 +110,6 @@ If(Test-Path $ff) { Remove-Item $ff | Out-Null }
 ##############################################################################
 # REPORT VPOD status
 ##############################################################################
-If( Test-Path $desktopInfo ) {
-	# read the desktopInfo.ini configuration file and find the line that begins with "HEADER=active:1"
-	$TMP = Select-String $desktopInfo -pattern "^HEADER=active:1"
-	# split the line on the ":"
-	$TMP = $TMP.Line.Split(":")
-	# split the last field on the "-"
-	$TMP = $TMP[4].Split("-")
-	Try {
-	# the YEAR is the first two characters of the last field as an integer
-		$YEAR = [int]$TMP[2].SubString(0,2)
-		# the SKU is the rest of the last field beginning with the third character as an integer (no leading zeroes)
-		$SKU = [int]$TMP[2].SubString(2)
-		$IPNET = "192.$YEAR.$SKU"
-	} 
-	Catch {
-		# Problems: Use the default IP network.
-		Write-Output "Lab SKU parsing Failure: $TMP"
-		$IPNET= '192.168.250'
-		# Do we fail the script or let it slide?
-		# Write-Progress "FAIL-Bad Lab SKU" 'FAIL-1'
-	}
-} Else {
-	# Something went wrong. Use the default IP network.
-	$IPNET= '192.168.250'
-	# Do we fail the script or let it slide?
-	# Write-Progress "FAIL-No DesktopInfo" 'FAIL-1'
-}
-
 $statusTable = @{
  'GOOD-1'   = 1
  'GOOD-2'   = 2
@@ -165,6 +137,35 @@ Function Report-VpodStatus ([string] $newStatus) {
 	$msg = Invoke-Plink -remoteHost $server -login holuser -passwd $linuxpassword -command '$lcmd'
 	$currentStatus = $newStatus
 } # END Report-VpodStatus
+
+
+If( Test-Path $desktopInfo ) {
+	# read the desktopInfo.ini configuration file and find the line that begins with "HEADER=active:1"
+	$TMP = Select-String $desktopInfo -pattern "^HEADER=active:1"
+	# split the line on the ":"
+	$TMP = $TMP.Line.Split(":")
+	# split the last field on the "-"
+	$TMP = $TMP[4].Split("-")
+	Try {
+	# the YEAR is the first two characters of the last field as an integer
+		$YEAR = [int]$TMP[2].SubString(0,2)
+		# the SKU is the rest of the last field beginning with the third character as an integer (no leading zeroes)
+		$SKU = [int]$TMP[2].SubString(2)
+		$IPNET = "192.$YEAR.$SKU"
+	} 
+	Catch {
+		# Problems: Use the default IP network.
+		Write-Output "Lab SKU parsing Failure: $TMP"
+		$IPNET= '192.168.250'
+		# Do we fail the script or let it slide?
+		Write-Progress "FAIL-Bad Lab SKU" 'FAIL-1'
+	}
+} Else {
+	# Something went wrong. Use the default IP network.
+	$IPNET= '192.168.250'
+	# Do we fail the script or let it slide?
+	Write-Progress "FAIL-No DesktopInfo" 'FAIL-1'
+}
 
 ##############################################################################
 
