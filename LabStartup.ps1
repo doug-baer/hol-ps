@@ -1,6 +1,6 @@
 ##############################################################################
 ##
-## LabStartup.ps1, v3.2, November 2014 (Win 2012 version) 
+## LabStartup.ps1, v3.3, November 2014 (unified version) 
 ##
 ##############################################################################
 <#
@@ -255,80 +255,40 @@ Function Test-URL ([string]$url, [string]$lookup, [REF]$result) {
 } #End Test-URL
 
 #### Manage Windows Services ####
-Function Start-WindowsService ([string]$server, [string]$service, [int]$waitsec, [REF]$result) {
+Function ManageWindowsService ([string] $action, [string]$server, [string]$service, [int]$waitsec, [REF]$result) {
 <#
-	This function restarts the specified Windows service on the specified server
-	The service must report "Running" within $waitsec seconds or the function 
-	reports 'fail'
+	This function performs an action (start/stop/restart/query) on the specified Windows service on the specified server
+	The service must report within $waitsec seconds or the function reports 'fail'
 #>
 	Try {
-		Start-Service -InputObject (Get-Service -ComputerName $server -Name $service)
+	    If( $action -eq "start" ) {
+		  Start-Service -InputObject (Get-Service -ComputerName $server -Name $service)
+		} ElseIf ( $action -eq "restart" ) {
+		  Restart-Service -InputObject (Get-Service -ComputerName $server -Name $service)
+		} ElseIf ( $action -eq "stop" ) {
+		  Stop-Service -InputObject (Get-Service -ComputerName $server -Name $service)
+		} Else {  # query option
+		  $svc = Get-Service -ComputerName $server -name $service
+		  $result.value = 'success'
+		  return $svc.Status
+		}
 		LabStartup-Sleep $waitsec
 		$svc = Get-service -computerName $server -name $service
-		If($svc.Status -eq "Running") {
+		If (( $action -eq "start" ) -or ( $action -eq "restart")) {
+		  If($svc.Status -eq "Running") {
 			$result.value = "success" 
+		  }
+		} ElseIf ( $action -eq "stop" ) {
+		  If($svc.Status -eq "Stopped") {
+			$result.value = "success" 
+		  }
 		}
 	}
 	Catch {
-		Write-Host "Failed to restart $service on $server"
+		Write-Host "Failed to $action $service on $server"
 		$result.value = "fail"
 	}
-} #End Start-WindowsService
-
-Function Restart-WindowsService ([string]$server, [string]$service, [int]$waitsec, [REF]$result) {
-<#
-	This function restarts the specified Windows service on the specified server
-	The service must report "Running" within $waitsec seconds or the function 
-	reports 'fail'
-#>
-	Try {
-		Restart-Service -InputObject (Get-Service -ComputerName $server -Name $service)
-		LabStartup-Sleep $waitsec
-		$svc = Get-service -computerName $server -name $service
-		If($svc.Status -eq "Running") {
-			$result.value = "success" 
-		}
-	}
-	Catch {
-		Write-Host "Failed to restart $service on $server"
-		$result.value = "fail"
-	}
-} #End Restart-WindowsService
-
-Function Stop-WindowsService ([string]$server, [string]$service, [int]$waitsec, [REF]$result) {
-<#
-	This function stops the specified Windows service on the specified server
-	The service must report "Stopped" within the $waitsec seconds or the function 
-	reports 'fail'
-#>
-	Try {
-		Stop-Service -InputObject (Get-Service -ComputerName $server -Name $service)
-		LabStartup-Sleep $waitsec
-		$svc = Get-Service -ComputerName $server -name $service
-		If($svc.Status -eq "Stopped") {
-			$result.value = "success" 
-		}
-	}
-	Catch {
-		Write-Host "Failed to stop $service on $server"
-		$result.value = "fail"
-	}
-} #End Stop-WindowsService
-
-Function Query-WindowsService ([string]$server, [string]$service, [REF]$result) {
-<#
-	This function returns the current running state of a Windows service
-#>
-	Try {
-		$svc = Get-Service -ComputerName $server -name $service
-		$result.value = 'success'
-		return $svc.Status 
-	}
-	Catch {
-		Write-Host "Failed to query $service on $server"
-		$result.value = "fail"
-	}
-} #End Query-WindowsService
+} #End ManageWindowsService
 
 Function Invoke-Plink ([string]$remoteHost, [string]$login, [string]$passwd, [string]$command) {
 <#
@@ -347,90 +307,36 @@ Function Invoke-PlinkKey ([string]$puttySession, [string]$command) {
 } #End Invoke-PlinkKey
 
 #### Manage Linux Services ####
-Function Start-LinuxService ([string]$server, [string]$service, [int]$waitsec, [REF]$result) {
+Function ManageLinuxService ([string]$action, [string]$server, [string]$service, [int]$waitsec, [REF]$result) {
 <#
-	This function starts the specified service on the specified server
-	The service must start within $waitsec seconds or the function reports 'fail'
+	This function manages (start/stop/restart/query) the specified service on the specified server
+	The service must respond within $waitsec seconds or the function reports 'fail'
 #>
-	$lcmd1 = "service $service start"
+	$lcmd1 = "service $service $action"
 	$lcmd2 = "service $service status"
 	Try {
-		$msg = Invoke-Plink -remoteHost $server -login $linuxuser -passwd $linuxpassword -command $lcmd1
-		LabStartup-Sleep $waitsec
+	    If ($action -ne "query") {
+		   $msg = Invoke-Plink -remoteHost $server -login $linuxuser -passwd $linuxpassword -command $lcmd1
+		   LabStartup-Sleep $waitsec
+		}
 		$msg = Invoke-Plink -remoteHost $server -login $linuxuser -passwd $linuxpassword -command $lcmd2
-		if( $msg -like "* is running" ) {
-			$result.value = "success"
+		If (( $action -eq "start" ) -or ( $action -eq "restart") -or ( $action -eq "query" )) {
+		    If( $msg -like "* is running" ) {
+			   $result.value = "success"
+			   If ($action -eq "query") { return "Running" }
+		    }
+		} ElseIf (( $action -eq "stop" ) -or ( $action -eq "query" )) {
+		    If( $msg -like "* is not running" ) {
+			   $result.value = "success"
+			   If ($action -eq "query") { return "Stopped" }
+		    }
 		}
 	}
 	Catch {
-		Write-Host "Failed to start $service on $server : $msg"
+		Write-Host "Failed to $action $service on $server : $msg"
 		$result.value = "fail"
 	}
-} #Start-LinuxService
-
-Function Restart-LinuxService ([string]$server, [string]$service, [int]$waitsec, [REF]$result) {
-<#
-	This function restarts the specified service on the specified server
-	The service must restart within $waitsec seconds or the function reports 'fail'
-#>
-	$lcmd1 = "service $service restart"
-	$lcmd2 = "service $service status"
-	Try {
-		$msg = Invoke-Plink -remoteHost $server -login $linuxuser -passwd $linuxpassword -command $lcmd1
-		LabStartup-Sleep $waitsec
-		$msg = Invoke-Plink -remoteHost $server -login $linuxuser -passwd $linuxpassword -command $lcmd2
-		if( $msg -like "* is running" ) {
-			$result.value = "success"
-		}
-	}
-	Catch {
-		Write-Host "Failed to restart $service on $server"
-		$result.value = "fail"
-	}
-} #Restart-LinuxService
-
-Function Stop-LinuxService ([string]$server, [string]$service, [int]$waitsec, [REF]$result) {
-<#
-	This function stops the specified service on the specified server
-	The service must stop within $waitsec seconds or the function reports 'fail'
-#>
-	$lcmd1 = "service $service stop"
-	$lcmd2 = "service $service status"
-	Try {
-		$msg = Invoke-Plink -remoteHost $server -login $linuxuser -passwd $linuxpassword -command $lcmd1
-		LabStartup-Sleep $waitsec
-		$msg = Invoke-Plink -remoteHost $server -login $linuxuser -passwd $linuxpassword -command $lcmd2
-		if( $msg -like "* is not running" ) {
-			$result.value = "success"
-		}
-	}
-	Catch {
-		Write-Host "Failed to stop $service on $server : $msg"
-		$result.value = "fail"
-	}
-} #Stop-LinuxService
-
-Function Query-LinuxService ([string]$server, [string]$service, [REF]$result) {
-<#
-	This function returns the current state of the service on the specified server
-#>
-	$lcmd1 = "service $service status"
-	Try {
-		$msg = Invoke-Plink -remoteHost $server -login $linuxuser -passwd $linuxpassword -command $lcmd1
-		if( $msg -like "* is not running" ) {
-			$result.value = "success"
-		return "Stopped"
-		}
-		if( $msg -like "* is running" ) {
-			$result.value = "success"
-		return "Running"
-		}
-	}
-	Catch {
-		Write-Host "Failed to query $service on $server : $msg"
-		$result.value = "fail"
-	}
-} #Query-LinuxService
+} #ManageLinuxService
 
 
 #### FOR TESTING ####
@@ -573,34 +479,40 @@ Foreach ($url in $($URLs.Keys)) {
 }
 
 ##############################################################################
-##### Lab Startup - STEP #4 (Start/Restart Services) 
+##### Lab Startup - STEP #4 (Start/Restart/Stop/Query Services) 
 ##############################################################################
 
 Write-Progress "Manage Win Svcs" 'GOOD-3'
 
-# Restart Windows services on remote machines
+# options are "start", "restart", "stop" or "query"
+$action = "query"
+# Manage Windows services on remote machines
 Foreach ($service in $WINservices) {
 	($wserver,$wservice) = $service.Split(":")
-	Write-Output "Restarting $wservice on $wserver"
+	Write-Output "Performing $action $wservice on $wserver"
 	$result = "fail"
 	$waitSecs = '30' # seconds to wait for service startup
 	while ($result -eq "fail") {
-		Restart-WindowsService $wserver $wservice $waitSecs ([REF]$result)
+		$status = ManageWindowsService $action $wserver $wservice $waitSecs ([REF]$result)
+		Write-Host "status is" $status
 	}
 }
 
-Write-Output "$(Get-Date) Finished Restart-WinServices"
+Write-Output "$(Get-Date) Finished $action WinServices"
 
 Write-Progress "Manage Linux Svcs" 'GOOD-3'
 
-# Restart Linux services on remote machines
+# options are "start", "restart", "stop" or "query"
+$action = "query"
+# Manage Linux services on remote machines
 Foreach ($service in $LINservices) {
 	($lserver,$lservice) = $service.Split(":")
-	write-output "Restarting $lservice on $lserver"
+	write-output "Performing $action $lservice on $lserver"
 	$result = "fail"
 	$waitSecs = '30' # seconds to wait for service startup
 	while ($result -eq "fail") {
-		Restart-LinuxService $lserver $lservice $waitSecs ([REF]$result)
+		$status = ManageLinuxService $action $lserver $lservice $waitSecs ([REF]$result)
+		Write-Host "status is" $status
 	}
 }
 
