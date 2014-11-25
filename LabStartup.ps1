@@ -1,6 +1,6 @@
 ##############################################################################
 ##
-## LabStartup.ps1, v3.3.3, November 2014 (unified version) 
+## LabStartup.ps1, v3.4, November 25, 2014 (unified version) 
 ##
 ##############################################################################
 <#
@@ -93,17 +93,12 @@ $URLs = @{
 	}
 
 #Remove the file that causes a "reset" message in Firefox
-$OSversion =  (Get-WmiObject -class Win32_OperatingSystem).Caption
-If( $OSversion.Contains("2012") ){
-#Windows 2012
-	$ff='C:\Users\Administrator\AppData\Roaming\Mozilla\Firefox\Profiles\5qs0vngr.default\parent.lock'
+$userProfilePath = (Get-Childitem env:UserProfile).Value
+$firefoxProfiles = Get-ChildItem (Join-Path $userProfilePath 'AppData\Roaming\Mozilla\Firefox\Profiles')
+ForEach ($firefoxProfile in $firefoxProfiles) {
+	$firefoxLock = Join-Path $firefoxProfile.FullName 'parent.lock'
+	If(Test-Path $firefoxLock) { Remove-Item $firefoxLock | Out-Null }
 }
-Else {
-	#Windows 2008, Other?
-	$ff='C:\Users\Administrator\AppData\Roaming\Mozilla\Firefox\Profiles\cmowrpil.default\parent.lock'
-}
-If(Test-Path $ff) { Remove-Item $ff | Out-Null }
-
 ##############################################################################
 # REPORT VPOD status
 ##############################################################################
