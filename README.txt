@@ -1,0 +1,1 @@
+LabStartup script sleketon for testing VMware Hands-on Labs vPod readiness

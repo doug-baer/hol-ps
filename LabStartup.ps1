@@ -1,9 +1,5 @@
-##############################################################################
-##
-## LabStartup.ps1 v3.5.3 - November 26, 2014 (unified version) 
-##
-##############################################################################
 <#
+
 .SYNOPSIS
 Performs various tasks to ensure that a vPod is ready to run, and then provides 
 feedback to the user (via DesktopInfo) and management system via vpodrouter NIC.
@@ -13,23 +9,26 @@ Connects to vCenter, Powers up vVMs, waits for availability of services on TCP
 ports or via URLs. Records progress into a file for consumption by DesktopInfo. 
 Modifies 6th NIC on vpodrouter to report status to vCD
 
+.NOTES
+LabStartup.ps1 v3.5.4 - November 26, 2014 (unified version) 
+* The format of the TCPServices and ESXiHosts entries is "server:port_number"
+* URLs must begin with http:// or https:// (with valid certificate)
+* The IP address on the NIC of the vpodrouter is set using SSH (plink.exe) 
+  and sudo (installed on the router) using the holuser account. 
+
+
 .EXAMPLE
 LabStartup.ps1
-Call it like this from a .BAT file: C:\WINDOWS\system32\windowspowershell\v1.0\powershell.exe -windowstyle hidden "& 'c:\HOL\LabStartup.ps1'"
+.EXAMPLE
+C:\WINDOWS\system32\windowspowershell\v1.0\powershell.exe -windowstyle hidden "& 'c:\HOL\LabStartup.ps1'"
 
 .INPUTS
 No inputs
 
-OUTPUTS
+.OUTPUTS
 Status messages are written to the console or output file and the C:\HOL\startup_status.txt ($statusFile) is updated with periodic status for consumption by DesktopInfo.exe. 
 In addition, the IP address of the 6th NIC on the vpodrouter (router.corp.local) is modified 
 with an encoded status code as the script progresses.
-
-.NOTES
-The format of the TCPServices and ESXiHosts entries is "server:port_number"
-URLs must begin with http:// or https:// (with valid certificate)
-The IP address on the NIC of the vpodrouter is set using SSH (plink.exe) and sudo 
-(installed on the router) using the holuser account. 
 
 #>
 
@@ -84,8 +83,10 @@ $linuxServices = @(
 )
 
 #Virtual Machines to be powered on
+# if multiple vCenters, specify the FQDN of the owning vCenter after the colon
 $VMs = @(
 	'base-sles-01a'
+#	'full-sles-01a:vcsa-01a.corp.local'
 	)
 
 #TCP Ports to be checked (host listens on port)
@@ -431,19 +432,27 @@ Foreach ($vcserver in $vCenters) {
 Write-Progress "Starting vVMs" 'STARTING'
 
 # Start the nested VMs - wait for each vVM to report 'PoweredOn'
-Foreach ($vmName in $VMs) {
-	$vm = Get-VM $vmName
-	$powerState = [string]$vm.PowerState
-	Write-Output $(" Checking vVM {0} power state: {1}" -f $vm.name, $powerState )
-	While ( !($powerState.Contains("PoweredOn")) ) {
-		Write-Output $("  Starting vVM {0}" -f $vm.name )
-		$vm | Start-VM -RunAsync
-		LabStartup-Sleep $sleepSeconds
-		$vm = Get-VM $vmName
+Foreach ($vmRecord in $VMs) {
+	# separate out the vVM name and the owning vCenter
+	($vmName,$vcenter) = $vmRecord.Split(":")
+
+	# If blank, default to the first/only vCenter
+	If( $vcenter -eq $null ) { $vcenter = $vCenters[0] }
+
+	If( $vm = Get-VM -Name $vmName -Server $vcenter -ea 0 ) {
 		$powerState = [string]$vm.PowerState
+		Write-Output $(" Checking vVM {0} power state: {1}" -f $vm.Name, $powerState )
+		While ( !($powerState.Contains("PoweredOn")) ) {
+			Write-Output $("  Starting vVM {0} on {1}" -f $vm.Name, $vcenter )
+			$vm | Start-VM -RunAsync
+			LabStartup-Sleep $sleepSeconds
+			$vm = Get-VM $vmName
+			$powerState = [string]$vm.PowerState
+		}
+	} Else {
+		Write-Output $("ERROR: Unable to find vVM {0} on {1}" -f $vmName, $vcenter )
 	}
 }
-
 Foreach ($vcserver in $vCenters) {
 	Write-Output "$(Get-Date) disconnecting from $vcserver ..."
 	Disconnect-VIServer -Server $vcserver -Confirm:$false
