@@ -1,78 +1,83 @@
 ##############################################################################
 ##
-## LabStartup.ps1, v3.4, November 25, 2014 (unified version) 
+## LabStartup.ps1, v3.5, November 25, 2014 (unified version) 
 ##
 ##############################################################################
 <#
 .SYNOPSIS
-	Performs various tasks to ensure that a vPod is "Ready" to run:
-		Connects to vCenter
-		Powers up VMs
-		Waits for availability of services on TCP ports or via URLs
-		Records progress into a file for consumption by DesktopInfo
-		
-		NEW: v3 modifies 6th NIC on vpodrouter to report status to vCD
+Performs various tasks to ensure that a vPod is ready to run, and then provides 
+feedback to the user (via DesktopInfo) and management system via vpodrouter NIC.
 
 .DESCRIPTION
-
-.PARAMETER
-	None
-
-.EXAMPLE
-	LabStartup.ps1
+Connects to vCenter, Powers up vVMs, waits for availability of services on TCP 
+ports or via URLs. Records progress into a file for consumption by DesktopInfo. 
+Modifies 6th NIC on vpodrouter to report status to vCD
 
 .EXAMPLE
-	C:\WINDOWS\system32\windowspowershell\v1.0\powershell.exe -windowstyle hidden "& 'c:\LabStartup.ps1'"
+LabStartup.ps1
+Call it like this from a .BAT file: C:\WINDOWS\system32\windowspowershell\v1.0\powershell.exe -windowstyle hidden "& 'c:\HOL\LabStartup.ps1'"
 
 .INPUTS
-	None - modify parameters in User Variables section
+No inputs
 
-.OUTPUTS
-	Modifies file identified by $statusFile with incremental status text
+OUTPUTS
+Status messages are written to the console or output file and the C:\HOL\startup_status.txt ($statusFile) is updated with periodic status for consumption by DesktopInfo.exe. 
+In addition, the IP address of the 6th NIC on the vpodrouter (router.corp.local) is modified 
+with an encoded status code as the script progresses.
 
 .NOTES
-	Tested with PowerCLI version 5.1 update 2 and Powershell 2
-	
-	The format of the TCPServices entries is "server:port_number"
-	
-	URLs must begin with http:// or https:// (with valid certificate)
-	
-.LINK
-	http://blogs.vmware.com/hol
+The format of the TCPServices and ESXiHosts entries is "server:port_number"
+URLs must begin with http:// or https:// (with valid certificate)
+The IP address on the NIC of the vpodrouter is set using SSH (plink.exe) and sudo 
+(installed on the router) using the holuser account. 
+
 #>
+
+$startTime = $(Get-Date)
+Write-Output "$startTime beginning LabStartup"
 
 ##############################################################################
 ##### User Variables
 ##############################################################################
-$startTime = $(Get-Date)
-$vcserver = "vcsa-01a.corp.local"
+
+# Credentials used to login to vCenters
 $vcuser = 'CORP\Administrator'
 $password = 'VMware1!'
+
+# Credentials used to login to Linux machines
 $linuxuser = 'root'
 $linuxpassword = 'VMware1!'
+
 $statusFile = "C:\HOL\startup_status.txt"
+# sleep time between checks
 $sleepSeconds = 10
-$maxMinutesBeforeFail = 30 # if still running this long, fail the pod
-$result = 'fail'
+# if still running this long, fail the pod
+$maxMinutesBeforeFail = 30
+# path to the DesktopInfo config -- used to get the lab SKU
 $desktopInfo = 'C:\DesktopInfo\desktopinfo.ini'
-Write-Output "$startTime beginning LabStartup"
+# path to Plink.exe -- for status & managing Linux
+$plinkPath = 'C:\hol\plink.exe'
 
-### Populate the following arrays with values appropriate to your lab
+### Populate the following with values appropriate to your lab
 
-# Test ESXi hosts are responding on port 22 (enable SSH on all HOL vESXi hosts)
+$vCenters = @(
+	'vcsa-01a.corp.local'
+)
+# Test ESXi hosts are responding on port 22
+# be sure to enable SSH on all HOL vESXi hosts
 $ESXiHosts = @(
 	'esx-01a.corp.local:22'
 	'esx-02a.corp.local:22'
 	)
 
 #Windows Services to be checked / started
-$WINservices = @(
-#	'controlcenter.corp.local:VMTools'
+$windowsServices = @(
+	'controlcenter.corp.local:VMTools'
 )
 
 #Linux Services to be checked / started
-$LINservices = @(
-#	'router.corp.local:vmware-tools'
+$linuxServices = @(
+	'router.corp.local:vmware-tools'
 )
 
 #Virtual Machines to be powered on
@@ -92,7 +97,7 @@ $URLs = @{
 	'http://stga-01a.corp.local/account/login' = 'FreeNAS'
 	}
 
-#Remove the file that causes a "reset" message in Firefox
+#Remove the file that causes a "Reset" message in Firefox
 $userProfilePath = (Get-Childitem env:UserProfile).Value
 $firefoxProfiles = Get-ChildItem (Join-Path $userProfilePath 'AppData\Roaming\Mozilla\Firefox\Profiles')
 ForEach ($firefoxProfile in $firefoxProfiles) {
@@ -123,7 +128,7 @@ Function Invoke-Plink ([string]$remoteHost, [string]$login, [string]$passwd, [st
 <#
 	This function executes the specified command on the remote host via SSH
 #>
-	Invoke-Expression "Echo Y | c:\hol\plink.exe -ssh $remoteHost -l $login -pw $passwd $command"
+	Invoke-Expression "Echo Y | $plinkPath -ssh $remoteHost -l $login -pw $passwd $command"
 } #End Invoke-Plink
 
 Function Report-VpodStatus ([string] $newStatus) {
@@ -192,9 +197,6 @@ Catch {
   Exit
 }
 
-##############################################################################
-##### Support Functions
-##############################################################################
 Function Connect-VC ([string]$server, [string]$username, [string]$password, [REF]$result) {
 <#
 	This function attempts once to connect to the specified vCenter 
@@ -254,7 +256,6 @@ Function Test-URL ([string]$url, [string]$lookup, [REF]$result) {
 	}
 } #End Test-URL
 
-#### Manage Windows Services ####
 Function ManageWindowsService ([string] $action, [string]$server, [string]$service, [int]$waitsec, [REF]$result) {
 <#
 	This function performs an action (start/stop/restart/query) on the specified Windows service on the specified server
@@ -293,13 +294,13 @@ Function ManageWindowsService ([string] $action, [string]$server, [string]$servi
 Function Invoke-PlinkKey ([string]$puttySession, [string]$command) {
 <#
 	This function executes the specified command on the remote host via SSH
-	utilizing key-based authentication and a saved PuTTY session
-	Rather than a username/password combination
+	utilizing key-based authentication and a saved PuTTY session name rather than 
+	a username/password combination
 #>
-	Invoke-Expression "Echo Y | c:\hol\plink.exe -ssh -load $puttySession $command"
+	Invoke-Expression "Echo Y | $plinkPath -ssh -load $puttySession $command"
 } #End Invoke-PlinkKey
 
-#### Manage Linux Services ####
+
 Function ManageLinuxService ([string]$action, [string]$server, [string]$service, [int]$waitsec, [REF]$result) {
 <#
 	This function manages (start/stop/restart/query) the specified service on the specified server
@@ -308,21 +309,21 @@ Function ManageLinuxService ([string]$action, [string]$server, [string]$service,
 	$lcmd1 = "service $service $action"
 	$lcmd2 = "service $service status"
 	Try {
-	    If ($action -ne "query") {
-		   $msg = Invoke-Plink -remoteHost $server -login $linuxuser -passwd $linuxpassword -command $lcmd1
-		   LabStartup-Sleep $waitsec
+		If ($action -ne "query") {
+			$msg = Invoke-Plink -remoteHost $server -login $linuxuser -passwd $linuxpassword -command $lcmd1
+			LabStartup-Sleep $waitsec
 		}
 		$msg = Invoke-Plink -remoteHost $server -login $linuxuser -passwd $linuxpassword -command $lcmd2
 		If (( $action -eq "start" ) -or ( $action -eq "restart") -or ( $action -eq "query" )) {
-		    If( $msg -like "* is running" ) {
-			   $result.value = "success"
-			   If ($action -eq "query") { return "Running" }
-		    }
+			If( $msg -like "* is running" ) {
+				$result.value = "success"
+				If ($action -eq "query") { Return "Running" }
+			}
 		} ElseIf (( $action -eq "stop" ) -or ( $action -eq "query" )) {
-		    If( $msg -like "* is not running" ) {
-			   $result.value = "success"
-			   If ($action -eq "query") { return "Stopped" }
-		    }
+				If( $msg -like "* is not running" ) {
+					$result.value = "success"
+					If ($action -eq "query") { Return "Stopped" }
+				}
 		}
 	}
 	Catch {
@@ -331,8 +332,6 @@ Function ManageLinuxService ([string]$action, [string]$server, [string]$service,
 	}
 } #ManageLinuxService
 
-
-#### FOR TESTING ####
 
 Function Start-AutoLab () {
 <#
@@ -349,10 +348,10 @@ Function Start-AutoLab () {
 			Start-Process powershell -ArgumentList "-command $cd\autolab.ps1"
 			Write-Host "Finished with $cd\autolab.ps1"
 			Write-Progress "Finished with $cd\autolab.ps1" 'AUTOLAB'
-			return $TRUE
+			Return $TRUE
 		}
 	}
-	return $FALSE
+	Return $FALSE
 } #End Start-AutoLab
 
 Function Get-RuntimeSeconds ( [datetime]$start ) {
@@ -360,7 +359,7 @@ Function Get-RuntimeSeconds ( [datetime]$start ) {
   Calculate and return number of seconds since $start
 #>
 	$runtime = $(get-date) - $start
-	return $runtime.TotalSeconds
+	Return $runtime.TotalSeconds
 } #End Get-RuntimeSeconds
 
 Function LabStartup-Sleep ( [int] $sleepSecs ) {
@@ -391,7 +390,7 @@ If( Start-AutoLab ) { exit } Write-Host "No autolab.ps1 found, continuing."
 
 #ATTENTION: Remove the next two lines when you implement this script for your pod
 Set-Content -Value "Not Implemented" -Path $statusFile
-exit
+Exit
 
 #Report Initial State
 Write-Output "Beginning Main script"
@@ -406,21 +405,19 @@ Write-Progress "Not Ready" 'STARTING'
 Write-Progress "Checking vESXi" 'STARTING'
 Foreach ($ESXihost in $ESXiHosts) {
 	($server,$port) = $ESXiHost.Split(":")
-	$result = "fail"
-	while ($result -eq "fail" ) { 
+	Do {
 		Test-TcpPortOpen $server $port ([REF]$result)
 		LabStartup-Sleep $sleepSeconds
-	}
+	} Until ($result -eq "success")
 }
 
 Write-Progress "Connecting vCenter" 'STARTING'
-#reset the result
-$result = 'fail'
-While ($result -eq "fail" ) { 
-	Connect-VC $vcserver $vcuser $password ([REF]$result)
-	LabStartup-Sleep $sleepSeconds
+Foreach ($vcserver in $vCenters) {
+	Do {
+		Connect-VC $vcserver $vcuser $password ([REF]$result)
+		LabStartup-Sleep $sleepSeconds
+	} Until ($result -eq "success")
 }
-
 
 ##############################################################################
 ##### Lab Startup - STEP #2 (Starting vVMs) 
@@ -453,22 +450,20 @@ Write-Progress "Testing TCP ports" 'GOOD-1'
 #Testing services are answering on TCP ports 
 Foreach ($service in $TCPservices) {
 	($server,$port) = $service.Split(":")
-	$result = "fail"
-	while ($result -eq "fail" ) { 
+	Do { 
 		Test-TcpPortOpen $server $port ([REF]$result)
 		LabStartup-Sleep $sleepSeconds
-	}
+	} Until ($result -eq "success")
 }
 
 Write-Progress "Checking URLs" 'GOOD-2'
 
 #Testing URLs
 Foreach ($url in $($URLs.Keys)) {
-	$result = "fail"
-	while ($result -eq "fail" ) { 
+	Do { 
 		Test-URL $url $URLs[$url] ([REF]$result)
 		LabStartup-Sleep $sleepSeconds
-	}
+	} Until ($result -eq "success")
 }
 
 ##############################################################################
@@ -480,36 +475,34 @@ Write-Progress "Manage Win Svcs" 'GOOD-3'
 # options are "start", "restart", "stop" or "query"
 $action = "query"
 # Manage Windows services on remote machines
-Foreach ($service in $WINservices) {
+Foreach ($service in $windowsServices) {
 	($wserver,$wservice) = $service.Split(":")
 	Write-Output "Performing $action $wservice on $wserver"
-	$result = "fail"
-	$waitSecs = '30' # seconds to wait for service startup
-	while ($result -eq "fail") {
+	$waitSecs = '30' # seconds to wait for service startup/shutdown
+	Do {
 		$status = ManageWindowsService $action $wserver $wservice $waitSecs ([REF]$result)
 		Write-Host "status is" $status
-	}
+	} Until ($result -eq "success")
 }
 
-Write-Output "$(Get-Date) Finished $action WinServices"
+Write-Output "$(Get-Date) Finished $action Windows services"
 
 Write-Progress "Manage Linux Svcs" 'GOOD-3'
 
 # options are "start", "restart", "stop" or "query"
 $action = "query"
 # Manage Linux services on remote machines
-Foreach ($service in $LINservices) {
+Foreach ($service in $linuxServices) {
 	($lserver,$lservice) = $service.Split(":")
-	write-output "Performing $action $lservice on $lserver"
-	$result = "fail"
-	$waitSecs = '30' # seconds to wait for service startup
-	while ($result -eq "fail") {
+	Write-Output "Performing $action $lservice on $lserver"
+	$waitSecs = '30' # seconds to wait for service startup/shutdown
+	Do {
 		$status = ManageLinuxService $action $lserver $lservice $waitSecs ([REF]$result)
 		Write-Host "status is" $status
-	}
+	} Until ($result -eq "success")
 }
 
-Write-Output "$(Get-Date) Finished Restart-LinuxServices"
+Write-Output "$(Get-Date) Finished $action Linux services"
 
 ## Any final checks here. Maybe you need to check something after the
 ## services are started/restarted.
