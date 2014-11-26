@@ -1,6 +1,6 @@
 ##############################################################################
 ##
-## LabStartup.ps1, v3.5, November 25, 2014 (unified version) 
+## LabStartup.ps1 v3.5.3 - November 26, 2014 (unified version) 
 ##
 ##############################################################################
 <#
@@ -57,9 +57,12 @@ $maxMinutesBeforeFail = 30
 $desktopInfo = 'C:\DesktopInfo\desktopinfo.ini'
 # path to Plink.exe -- for status & managing Linux
 $plinkPath = 'C:\hol\plink.exe'
+#must be defined in order to pass as reference for looping
+$result = ''
 
 ### Populate the following with values appropriate to your lab
 
+#FQDN of vCenter server(s)
 $vCenters = @(
 	'vcsa-01a.corp.local'
 )
@@ -104,24 +107,25 @@ ForEach ($firefoxProfile in $firefoxProfiles) {
 	$firefoxLock = Join-Path $firefoxProfile.FullName 'parent.lock'
 	If(Test-Path $firefoxLock) { Remove-Item $firefoxLock | Out-Null }
 }
+
 ##############################################################################
-# REPORT VPOD status
+# REPORT VPOD status codes
 ##############################################################################
 $statusTable = @{
- 'GOOD-1'   = 1
- 'GOOD-2'   = 2
- 'GOOD-3'   = 3
- 'GOOD-4'   = 4
- 'GOOD-5'   = 5
- 'FAIL-1'   = 101
- 'FAIL-2'   = 102
- 'FAIL-3'   = 103
- 'FAIL-4'   = 104
- 'FAIL-5'   = 105
- 'READY'    = 200
- 'AUTOLAB'  = 201
- 'STARTING' = 202
- 'TIMEOUT'  = 203
+	'GOOD-1'   = 1
+	'GOOD-2'   = 2
+	'GOOD-3'   = 3
+	'GOOD-4'   = 4
+	'GOOD-5'   = 5
+	'FAIL-1'   = 101
+	'FAIL-2'   = 102
+	'FAIL-3'   = 103
+	'FAIL-4'   = 104
+	'FAIL-5'   = 105
+	'READY'    = 200
+	'AUTOLAB'  = 201
+	'STARTING' = 202
+	'TIMEOUT'  = 203
 }
 
 Function Invoke-Plink ([string]$remoteHost, [string]$login, [string]$passwd, [string]$command) {
@@ -140,7 +144,7 @@ Function Report-VpodStatus ([string] $newStatus) {
 	#Write-Host $lcmd
 	$msg = Invoke-Plink -remoteHost $server -login holuser -passwd $linuxpassword -command '$lcmd'
 	$currentStatus = $newStatus
-} # END Report-VpodStatus
+} #End Report-VpodStatus
 
 Function Write-Progress ([string] $msg, [string] $code) {
 	$myTime = $(Get-Date)
@@ -152,7 +156,7 @@ Function Write-Progress ([string] $msg, [string] $code) {
 		Set-Content -Value "$dateCode $msg " -Path $statusFile
 	}
 	Report-VpodStatus $code
-}#End Write-Progress
+} #End Write-Progress
 
 ##############################################################################
 
@@ -161,15 +165,15 @@ If( Test-Path $desktopInfo ) {
 	$TMP = Select-String $desktopInfo -pattern "^HEADER=active:1"
 	# split the line on the ":"
 	$TMP = $TMP.Line.Split(":")
-	# split the last field on the "-"
-	$TMP = $TMP[4].Split("-")
+	# split the last field on the "-" and space characters
+	$TMP = $TMP[4].Split("- ")
 	Try {
 	# the YEAR is the first two characters of the last field as an integer
 		$YEAR = [int]$TMP[2].SubString(0,2)
 		# the SKU is the rest of the last field beginning with the third character as an integer (no leading zeroes)
 		$SKU = [int]$TMP[2].SubString(2)
 		$IPNET = "192.$YEAR.$SKU"
-	} 
+	}
 	Catch {
 		# Problems: Use the default IP network and FAIL
 		Write-Output "Lab SKU parsing Failure: $TMP"
@@ -192,9 +196,9 @@ Try {
   Add-PSSnapin VMware.VimAutomation.Core -ErrorAction 1 
 } 
 Catch {
-  Write-Host "No PowerCLI found, unable to continue."
-  Write-Progress "FAIL-No PowerCLI" 'FAIL-1'
-  Exit
+	Write-Host "No PowerCLI found, unable to continue."
+	Write-Progress "FAIL - No PowerCLI" 'FAIL-1'
+	Exit
 }
 
 Function Connect-VC ([string]$server, [string]$username, [string]$password, [REF]$result) {
@@ -212,7 +216,7 @@ Function Connect-VC ([string]$server, [string]$username, [string]$password, [REF
 #		Write-Host $_.Exception.Message
 		$result.value = "fail"
 	}
-}#End Connect
+} #End Connect-VC
 
 Function Test-TcpPortOpen ([string]$server, [int]$port, [REF]$result) {
 <#
@@ -232,7 +236,7 @@ Function Test-TcpPortOpen ([string]$server, [int]$port, [REF]$result) {
 		Write-Host "Failed to connect to server $server on port $port"
 		$result.value = "fail"
 	}
-}#End Test-TcpPortOpen
+} #End Test-TcpPortOpen
 
 Function Test-URL ([string]$url, [string]$lookup, [REF]$result) {
 <#
@@ -258,31 +262,32 @@ Function Test-URL ([string]$url, [string]$lookup, [REF]$result) {
 
 Function ManageWindowsService ([string] $action, [string]$server, [string]$service, [int]$waitsec, [REF]$result) {
 <#
-	This function performs an action (start/stop/restart/query) on the specified Windows service on the specified server
-	The service must report within $waitsec seconds or the function reports 'fail'
+	This function performs an action (start/stop/restart/query) on the specified 
+	Windows service on the specified server. The service must report within $waitsec 
+	seconds or the function reports 'fail'
 #>
 	Try {
-	    If( $action -eq "start" ) {
-		  Start-Service -InputObject (Get-Service -ComputerName $server -Name $service)
+		If( $action -eq "start" ) {
+			Start-Service -InputObject (Get-Service -ComputerName $server -Name $service)
 		} ElseIf ( $action -eq "restart" ) {
-		  Restart-Service -InputObject (Get-Service -ComputerName $server -Name $service)
+			Restart-Service -InputObject (Get-Service -ComputerName $server -Name $service)
 		} ElseIf ( $action -eq "stop" ) {
-		  Stop-Service -InputObject (Get-Service -ComputerName $server -Name $service)
+			Stop-Service -InputObject (Get-Service -ComputerName $server -Name $service)
 		} Else {  # query option
-		  $svc = Get-Service -ComputerName $server -name $service
-		  $result.value = 'success'
-		  return $svc.Status
+			$svc = Get-Service -ComputerName $server -name $service
+			$result.value = 'success'
+			Return $svc.Status
 		}
 		LabStartup-Sleep $waitsec
 		$svc = Get-service -computerName $server -name $service
 		If (( $action -eq "start" ) -or ( $action -eq "restart")) {
-		  If($svc.Status -eq "Running") {
-			$result.value = "success" 
-		  }
+			If($svc.Status -eq "Running") {
+				$result.value = "success" 
+			}
 		} ElseIf ( $action -eq "stop" ) {
-		  If($svc.Status -eq "Stopped") {
-			$result.value = "success" 
-		  }
+			If($svc.Status -eq "Stopped") {
+				$result.value = "success" 
+			}
 		}
 	}
 	Catch {
@@ -429,17 +434,20 @@ Write-Progress "Starting vVMs" 'STARTING'
 Foreach ($vmName in $VMs) {
 	$vm = Get-VM $vmName
 	$powerState = [string]$vm.PowerState
+	Write-Output $(" Checking vVM {0} power state: {1}" -f $vm.name, $powerState )
 	While ( !($powerState.Contains("PoweredOn")) ) {
-		Write-Host "Starting VM" $vm.name
+		Write-Output $("  Starting vVM {0}" -f $vm.name )
 		$vm | Start-VM -RunAsync
-	LabStartup-Sleep $sleepSeconds
-	$vm = Get-VM $vmName
-	$powerState = [string]$vm.PowerState
+		LabStartup-Sleep $sleepSeconds
+		$vm = Get-VM $vmName
+		$powerState = [string]$vm.PowerState
 	}
 }
 
-Write-Output "$(Get-Date) disconnecting from $vcserver ..."
-Disconnect-VIServer -Confirm:$false
+Foreach ($vcserver in $vCenters) {
+	Write-Output "$(Get-Date) disconnecting from $vcserver ..."
+	Disconnect-VIServer -Server $vcserver -Confirm:$false
+}
 
 ##############################################################################
 ##### Lab Startup - STEP #3 (Testing Ports & Services) 
