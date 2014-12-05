@@ -10,7 +10,7 @@ ports or via URLs. Records progress into a file for consumption by DesktopInfo.
 Modifies 6th NIC on vpodrouter to report status to vCD
 
 .NOTES
-LabStartup.ps1 v3.5.4 - November 26, 2014 (unified version) 
+LabStartup.ps1 v3.6 - December 5, 2014 (unified version) 
 * The format of the TCPServices and ESXiHosts entries is "server:port_number"
 * URLs must begin with http:// or https:// (with valid certificate)
 * The IP address on the NIC of the vpodrouter is set using SSH (plink.exe) 
@@ -128,6 +128,59 @@ $statusTable = @{
 	'STARTING' = 202
 	'TIMEOUT'  = 203
 }
+
+# reads the vApps and VMs arrays then verifies and starts as needed
+Function Start-Nested () {
+	# add the arrays
+	$records = $vApps + $VMs
+	# track the ctr and switch from vApps to VMs when appropriate
+	$ctr = 0
+	Foreach ($record in $records) {
+		# separate out the vVM name and the owning vCenter
+		($name,$vcenter) = $record.Split(":")
+		# If blank, default to the first/only vCenter
+		If( $vcenter -eq $null ) { $vcenter = $vCenters[0] }
+		
+		If ( $ctr -lt $vApps.length) {
+			# start vApps
+			If( $vApp = Get-VApp -Name $name -Server $vcenter -ea 0 ) {
+				$powerState = [string]$vApp.Status
+				Write-Output $(" Checking vApp {0} power state: {1}" -f $vApp.Name, $powerState )
+				While ( !($powerState.Contains("Started")) ) {
+					If ( !($powerState.Contains("Starting")) ) {
+						Write-Output $("  Starting vApp {0} on {1}" -f $vApp.Name, $vcenter )
+						$vApp | Start-VApp -RunAsync
+					}
+					LabStartup-Sleep $sleepSeconds
+					$vApp = Get-VApp $name
+					$powerState = [string]$vApp.Status
+					Write-Output $(" Checking vApp {0} power state: {1}" -f $vApp.Name, $powerState )
+				}
+			} Else {
+				Write-Output $("ERROR: Unable to find vApp {0} on {1}" -f $name, $vcenter )
+			}
+		} Else {
+			# start vVMs
+			If( $vm = Get-VM -Name $name -Server $vcenter -ea 0 ) {
+				$powerState = [string]$vm.PowerState
+				Write-Output $(" Checking vVM {0} power state: {1}" -f $vm.Name, $powerState )
+				While ( !($powerState.Contains("PoweredOn")) ) {
+					If ( !($powerState.Contains("Starting")) ) {
+						Write-Output $("  Starting vVM {0} on {1}" -f $vm.Name, $vcenter )
+						$vm | Start-VM -RunAsync
+					}
+					LabStartup-Sleep $sleepSeconds
+					$vm = Get-VM $name
+					$powerState = [string]$vm.PowerState
+					Write-Output $(" Checking vVM {0} power state: {1}" -f $vm.Name, $powerState )
+				}
+			} Else {
+				Write-Output $("ERROR: Unable to find vVM {0} on {1}" -f $name, $vcenter )
+			}
+		}
+		$ctr++
+	}
+} #End Start-Nested
 
 Function Invoke-Plink ([string]$remoteHost, [string]$login, [string]$passwd, [string]$command) {
 <#
@@ -426,33 +479,12 @@ Foreach ($vcserver in $vCenters) {
 }
 
 ##############################################################################
-##### Lab Startup - STEP #2 (Starting vVMs) 
+##### Lab Startup - STEP #2 (Starting Nested VMs and vApps) 
 ##############################################################################
 
 Write-Progress "Starting vVMs" 'STARTING'
+Start-Nested
 
-# Start the nested VMs - wait for each vVM to report 'PoweredOn'
-Foreach ($vmRecord in $VMs) {
-	# separate out the vVM name and the owning vCenter
-	($vmName,$vcenter) = $vmRecord.Split(":")
-
-	# If blank, default to the first/only vCenter
-	If( $vcenter -eq $null ) { $vcenter = $vCenters[0] }
-
-	If( $vm = Get-VM -Name $vmName -Server $vcenter -ea 0 ) {
-		$powerState = [string]$vm.PowerState
-		Write-Output $(" Checking vVM {0} power state: {1}" -f $vm.Name, $powerState )
-		While ( !($powerState.Contains("PoweredOn")) ) {
-			Write-Output $("  Starting vVM {0} on {1}" -f $vm.Name, $vcenter )
-			$vm | Start-VM -RunAsync
-			LabStartup-Sleep $sleepSeconds
-			$vm = Get-VM $vmName
-			$powerState = [string]$vm.PowerState
-		}
-	} Else {
-		Write-Output $("ERROR: Unable to find vVM {0} on {1}" -f $vmName, $vcenter )
-	}
-}
 Foreach ($vcserver in $vCenters) {
 	Write-Output "$(Get-Date) disconnecting from $vcserver ..."
 	Disconnect-VIServer -Server $vcserver -Confirm:$false
