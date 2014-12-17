@@ -10,7 +10,7 @@ ports or via URLs. Records progress into a file for consumption by DesktopInfo.
 Modifies 6th NIC on vpodrouter to report status to vCD
 
 .NOTES
-LabStartup.ps1 v3.6 - December 5, 2014 (unified version) 
+LabStartup.ps1 v3.6.1 - December 16, 2014 (unified version) 
 * The format of the TCPServices and ESXiHosts entries is "server:port_number"
 * URLs must begin with http:// or https:// (with valid certificate)
 * The IP address on the NIC of the vpodrouter is set using SSH (plink.exe) 
@@ -204,10 +204,10 @@ Function Write-Progress ([string] $msg, [string] $code) {
 	$myTime = $(Get-Date)
 	If( $code -eq 'READY' ) {
 		$dateCode = "{0:D2}/{1:D2} {2:D2}:{3:D2}" -f $myTime.month,$myTime.day,$myTime.hour,$myTime.minute
-		Set-Content -Value "$msg $dateCode" -Path $statusFile
+		Set-Content -Value ([byte[]][char[]] "$msg $dateCode") -Path $statusFile -Encoding Byte
 	} Else {
 		$dateCode = "{0:D2}:{1:D2}" -f $myTime.hour,$myTime.minute
-		Set-Content -Value "$dateCode $msg " -Path $statusFile
+		Set-Content -Value ([byte[]][char[]] "$dateCode $msg ") -Path $statusFile -Encoding Byte
 	}
 	Report-VpodStatus $code
 } #End Write-Progress
@@ -389,7 +389,7 @@ Function ManageLinuxService ([string]$action, [string]$server, [string]$service,
 		Write-Host "Failed to $action $service on $server : $msg"
 		$result.value = "fail"
 	}
-} #ManageLinuxService
+} #End ManageLinuxService
 
 
 Function Start-AutoLab () {
