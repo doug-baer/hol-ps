@@ -10,7 +10,7 @@ ports or via URLs. Records progress into a file for consumption by DesktopInfo.
 Modifies 6th NIC on vpodrouter to report status to vCD
 
 .NOTES
-LabStartup.ps1 v3.6.1 - December 16, 2014 (unified version) 
+LabStartup.ps1 v3.7 - December 18, 2014 (unified version) 
 * The format of the TCPServices and ESXiHosts entries is "server:port_number"
 * URLs must begin with http:// or https:// (with valid certificate)
 * The IP address on the NIC of the vpodrouter is set using SSH (plink.exe) 
@@ -384,6 +384,7 @@ Function ManageLinuxService ([string]$action, [string]$server, [string]$service,
 					If ($action -eq "query") { Return "Stopped" }
 				}
 		}
+		return $msg
 	}
 	Catch {
 		Write-Host "Failed to $action $service on $server : $msg"
@@ -491,35 +492,10 @@ Foreach ($vcserver in $vCenters) {
 }
 
 ##############################################################################
-##### Lab Startup - STEP #3 (Testing Ports & Services) 
+##### Lab Startup - STEP #3 (Start/Restart/Stop/Query Services) 
 ##############################################################################
 
-Write-Progress "Testing TCP ports" 'GOOD-1'
-
-#Testing services are answering on TCP ports 
-Foreach ($service in $TCPservices) {
-	($server,$port) = $service.Split(":")
-	Do { 
-		Test-TcpPortOpen $server $port ([REF]$result)
-		LabStartup-Sleep $sleepSeconds
-	} Until ($result -eq "success")
-}
-
-Write-Progress "Checking URLs" 'GOOD-2'
-
-#Testing URLs
-Foreach ($url in $($URLs.Keys)) {
-	Do { 
-		Test-URL $url $URLs[$url] ([REF]$result)
-		LabStartup-Sleep $sleepSeconds
-	} Until ($result -eq "success")
-}
-
-##############################################################################
-##### Lab Startup - STEP #4 (Start/Restart/Stop/Query Services) 
-##############################################################################
-
-Write-Progress "Manage Win Svcs" 'GOOD-3'
+Write-Progress "Manage Win Svcs" 'GOOD-2'
 
 # options are "start", "restart", "stop" or "query"
 $action = "query"
@@ -552,6 +528,32 @@ Foreach ($service in $linuxServices) {
 }
 
 Write-Output "$(Get-Date) Finished $action Linux services"
+
+##############################################################################
+##### Lab Startup - STEP #3 (Testing Ports & Services) 
+##############################################################################
+
+Write-Progress "Testing TCP ports" 'GOOD-3'
+
+#Testing services are answering on TCP ports 
+Foreach ($service in $TCPservices) {
+	($server,$port) = $service.Split(":")
+	Do { 
+		Test-TcpPortOpen $server $port ([REF]$result)
+		LabStartup-Sleep $sleepSeconds
+	} Until ($result -eq "success")
+}
+
+Write-Progress "Checking URLs" 'GOOD-4'
+
+#Testing URLs
+Foreach ($url in $($URLs.Keys)) {
+	Do { 
+		Test-URL $url $URLs[$url] ([REF]$result)
+		LabStartup-Sleep $sleepSeconds
+	} Until ($result -eq "success")
+}
+
 
 ## Any final checks here. Maybe you need to check something after the
 ## services are started/restarted.
