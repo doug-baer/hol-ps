@@ -555,8 +555,11 @@ Foreach ($url in $($URLs.Keys)) {
 }
 
 
+#Write-Progress "Doing My Thing" 'GOOD-4'
 ## Any final checks here. Maybe you need to check something after the
 ## services are started/restarted.
+#Write-Progress "Finished Doing My Thing" 'GOOD-5'
+
 
 #Report Final State
 Write-Progress "Ready" 'READY'

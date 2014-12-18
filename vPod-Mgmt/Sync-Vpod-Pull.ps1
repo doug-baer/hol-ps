@@ -2,8 +2,8 @@
 .NOTES
   Name:     Sync-VPod-Pull
   Author:   Doug Baer
-  Version:  2.0
-  Date:     2014-09-20
+  Version:  2.0.1
+  Date:     2014-12-18
 
 .SYNOPSIS
   Efficiently synchronize two OVF exports between sites using specified local data as the seed.
@@ -394,8 +394,13 @@ PROCESS {
 
   if( $OldName -ne "" ) {
     $oldSeedDir = Get-Item $(Join-Path $LocalSeed $OldName)
+
+    #First, remove the "CHECKSUM" files
+    Get-ChildItem $oldSeedDir -Filter Checksum* | Remove-Item
+
     $count = 0
     $oldSeedDir.EnumerateFiles() | % {$count +=1}
+    #there should be none of these!
     $oldSeedDir.EnumerateDirectories() | % {$count +=10}
     if( $count -lt 5 ) {
       Write-Host "Removing SEED directory $($oldSeedDir.FullName)"

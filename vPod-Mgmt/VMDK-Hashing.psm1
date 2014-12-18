@@ -1,10 +1,9 @@
-# Using PowerShell (4.0+), calculate and verify MD5 checksums for HOL pods
-
 Function Get-VmdkHash {
 <#
 	Create a list of MD5 hashes for the VMDKs at a given path
 	Write the list to CHECKSUM-<SITENAME>.txt at the root of the VPODPATH
 	HashAlgorithm defaults to MD5, which is fine for file validation
+	Requires Powershell 4.0 or higher
 #>
 	PARAM(
 		$VpodPath = $(throw "need -VPodName"),
