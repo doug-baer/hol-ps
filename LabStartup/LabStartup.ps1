@@ -10,7 +10,7 @@ ports or via URLs. Records progress into a file for consumption by DesktopInfo.
 Modifies 6th NIC on vpodrouter to report status to vCD
 
 .NOTES
-LabStartup.ps1 v3.7 - December 18, 2014 (unified version) 
+LabStartup.ps1 v3.7.1 - December 29, 2014 (unified version) 
 * The format of the TCPServices and ESXiHosts entries is "server:port_number"
 * URLs must begin with http:// or https:// (with valid certificate)
 * The IP address on the NIC of the vpodrouter is set using SSH (plink.exe) 
@@ -498,7 +498,7 @@ Foreach ($vcserver in $vCenters) {
 Write-Progress "Manage Win Svcs" 'GOOD-2'
 
 # options are "start", "restart", "stop" or "query"
-$action = "query"
+$action = "start"
 # Manage Windows services on remote machines
 Foreach ($service in $windowsServices) {
 	($wserver,$wservice) = $service.Split(":")
@@ -506,7 +506,8 @@ Foreach ($service in $windowsServices) {
 	$waitSecs = '30' # seconds to wait for service startup/shutdown
 	Do {
 		$status = ManageWindowsService $action $wserver $wservice $waitSecs ([REF]$result)
-		Write-Host "status is" $status
+# If using "query" option, uncomment next line to display current state in log
+#		Write-Host "status is" $status
 	} Until ($result -eq "success")
 }
 
@@ -515,7 +516,7 @@ Write-Output "$(Get-Date) Finished $action Windows services"
 Write-Progress "Manage Linux Svcs" 'GOOD-3'
 
 # options are "start", "restart", "stop" or "query"
-$action = "query"
+$action = "start"
 # Manage Linux services on remote machines
 Foreach ($service in $linuxServices) {
 	($lserver,$lservice) = $service.Split(":")
@@ -523,7 +524,8 @@ Foreach ($service in $linuxServices) {
 	$waitSecs = '30' # seconds to wait for service startup/shutdown
 	Do {
 		$status = ManageLinuxService $action $lserver $lservice $waitSecs ([REF]$result)
-		Write-Host "status is" $status
+# If using "query" option, uncomment next line to display current state in log
+#		Write-Host "status is" $status
 	} Until ($result -eq "success")
 }
 
@@ -563,6 +565,5 @@ Foreach ($url in $($URLs.Keys)) {
 
 #Report Final State
 Write-Progress "Ready" 'READY'
-Write-Output "$(Get-Date) LabStartup Finished"
-
+Write-Output $( "$(Get-Date) LabStartup Finished - runtime was {0:N0} minutes." -f  ((Get-RuntimeSeconds $startTime) / 60) )
 ##############################################################################

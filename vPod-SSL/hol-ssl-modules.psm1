@@ -1,7 +1,7 @@
 ###
 # HOL SSL Certificate Module
 #
-# Version 0.2 - 03 October 2014 
+# Version 0.5 - 18 December 2014 
 #   - WORK IN PROGRESS: VERY UGLY CODE PRESENT
 #
 # Doug Baer 
@@ -32,17 +32,18 @@ Function Create-HostSslCertificate
 
   Requires openssl.exe and direct access to CA on "ControlCenter"
   Requires CA certificate exported (.CER) to path specified in $CA_Certificate
+	Password on the PFX is 'testpassword' 
 
-  This one takes IPv4 addresses only
+  This one takes IPv4 addresses ONLY
 #>
   PARAM(
     # The short name of the vCenter Server
-    $HOST_SHORTNAME = "",
+    $HOST_SHORTNAME = $(throw "need -HOST_SHORTNAME"),
     # The DNS name of the ESXi host
     $HOST_FQDN = "$HOST_SHORTNAME.corp.local",
     # The IP address of the ESXi host
-    $HOST_IPv4 = "",
-    # The path to the CA certificate - defaults to Windows 2008
+    $HOST_IPv4 = $(throw "need -HOST_IPv4"),
+    # The path to the CA certificate
     $CA_Certificate = "c:\hol\ssl\CA-Certificate.cer"
   )
   PROCESS {
@@ -105,6 +106,11 @@ Function Create-HostSslCertificate
     Write-Debug "$HOST_SHORTNAME : Submitting to $CA_Name"
     certreq -submit -attrib $CA_Template -config "$CA_Name" "$HOST_SHORTNAME.csr" "$WorkingDir\rui.crt"
   
+    Write-Debug "$HOST_SHORTNAME : Generating PEM / Cert chain with Key"
+    Copy-Item "$WorkingDir\rui.key" "$WorkingDir\rui.pem"
+    Get-Content "$WorkingDir\rui.crt" | Out-File -Append -Encoding ASCII  "$WorkingDir\rui.pem"
+    Get-Content "$CA_Certificate" | Out-File -Append -Encoding ASCII  "$WorkingDir\rui.pem"
+  
     Write-Debug "$HOST_SHORTNAME : Generating PFX"
     OpenSSL pkcs12 -export -in "$WorkingDir\rui.crt" -inkey "$WorkingDir\rui.key" -certfile "$CA_Certificate" -name "rui" -passout pass:testpassword -out "$WorkingDir\rui.pfx"
   
@@ -128,13 +134,13 @@ Function Create-HostSslCertificate6
 #>
   PARAM(
     # The short name of the vCenter Server
-    $HOST_SHORTNAME = "",
+    $HOST_SHORTNAME = $(throw "need -HOST_SHORTNAME"),
     # The DNS name of the ESXi host
     $HOST_FQDN = "$HOST_SHORTNAME.corp.local",
     # The IP address of the ESXi host
-    $HOST_IPv4 = "",
+    $HOST_IPv4 = $(throw "need -HOST_IPv4"),
     # The IPv6 address of the ESXi host
-    $HOST_IPv6 = "",
+    $HOST_IPv6 = $(throw "need -HOSTIPv6"),
     # The CA's certificate
     $CA_Certificate = "c:\hol\ssl\CA-Certificate.cer"
   )
@@ -220,13 +226,11 @@ Function Create-VcenterSslCertificates
 #>
   PARAM(
     # The short name of the vCenter Server
-    $VC_SHORTNAME = "",
+    $VC_SHORTNAME = $(throw "need -VC_SHORTNAME"),
     # The DNS name of the vCenter Server
     $VC_FQDN = "$VC_SHORTNAME.corp.local",
     # The IP address of the vCenter Server
-    $VC_IPv4 = "",
-    # The IPv6 address of the vCenter Server
-    $VC_IPv6 = "",
+    $VC_IPv4 = $(throw "need -VC_IPv4"),
     # The CA's certificate
     $CA_Certificate = "c:\hol\ssl\CA-Certificate.cer"
     
@@ -263,7 +267,7 @@ Function Create-VcenterSslCertificates
     basicConstraints = CA:false
     keyUsage = digitalSignature, keyEncipherment, dataEncipherment
     extendedKeyUsage = serverAuth, clientAuth
-    subjectAltName = DNS:SHORTNAMEREPLACE, IP: IPv4ADDRESSREPLACE, IP:IPv6ADDRESSREPLACE, DNS: FQDNREPLACE
+    subjectAltName = DNS:SHORTNAMEREPLACE, IP: IPv4ADDRESSREPLACE, DNS: FQDNREPLACE
     [ req_distinguished_name ]
     countryName = US
     stateOrProvinceName = California
@@ -287,7 +291,7 @@ Function Create-VcenterSslCertificates
       Set-Location $Service
     
       Write-Debug "$Service : Writing Template"
-      $Out = (((((($RequestTemplate -replace "FQDNREPLACE", $VC_FQDN) -replace "SHORTNAMEREPLACE", $VC_SHORTNAME) -replace "ORGNAMEREPLACE", $Service) -replace "ADMINEMAILREPLACE", $AdminEmail) -replace "IPv4ADDRESSREPLACE", $VC_IPv4) -replace "IPv6ADDRESSREPLACE", $VC_IPv6) | Out-File "$WorkingDir\$Service\$Service.cfg" -Encoding Default -Force
+      $Out = ((((($RequestTemplate -replace "FQDNREPLACE", $VC_FQDN) -replace "SHORTNAMEREPLACE", $VC_SHORTNAME) -replace "ORGNAMEREPLACE", $Service) -replace "ADMINEMAILREPLACE", $AdminEmail) -replace "IPv4ADDRESSREPLACE", $VC_IPv4) | Out-File "$WorkingDir\$Service\$Service.cfg" -Encoding Default -Force
     
       Write-Debug "$Service : Generating CSR"
       OpenSSL req -new -nodes -out "$WorkingDir\$Service\$Service.csr" -keyout "$WorkingDir\$Service\rui-orig.key" -config "$WorkingDir\$Service\$Service.cfg"
@@ -308,30 +312,25 @@ Function Create-VcenterSslCertificates
 
 ###############################################################################
 
-Function Create-VcenterSslCertificatesWin
+Function New-VcenterSslCertificatesWin
 {
 <#
-  Create a batch of SSL certificates for Windows-based vCenter
+  Create a batch of SSL certificates for vCenter Server on Windows
 
   Requires openssl.exe and direct access to CA
+  
+  Requires set of keys and CSRs created and named with SSL Automaton Tool
+  
+  Requires request directories copied to C:\HOL\SSL\vCenter\$VC_SHORTNAME
+
   Requires CA certificate exported (.CER) to path specified in $CA_Certificate
-  
-  THIS IS VERY ROUGH. The intent is to take CSRs created by the ssl-certificate-updater-tool and feed them to the CA for issuing.
-  
-  I DON'T THINK THIS IS WORKING JUST YET
 #>
   PARAM(
     # The short name of the vCenter Server
-    $VC_SHORTNAME = "",
-    # The DNS name of the vCenter Server
-    $VC_FQDN = "$VC_SHORTNAME.corp.local",
-    # The IP address of the vCenter Server
-    $VC_IPv4 = "",
-    # The IPv6 address of the vCenter Server
-    $VC_IPv6 = "",
+    $VC_SHORTNAME = $(throw "need -VC_SHORTNAME"),
     # The CA's certificate
-    $CA_Certificate = "c:\hol\ssl\CA-Certificate.cer"
-  )
+    $CA_Certificate = "c:\hol\ssl\CA-W12.cer"
+	)
   PROCESS {
     # The Certificate Authority Name
     $CA_Name = "controlcenter.corp.local\CONTROLCENTER-CA"
@@ -342,41 +341,49 @@ Function Create-VcenterSslCertificatesWin
     # A working directory under which the certificates and folders will be created
     $WorkingDir = "c:\hol\ssl\vCenter\$VC_SHORTNAME"
     # An array of the services we will generate the certificates for
-    $Services = @("vCenterSSO-$VC_SHORTNAME","vCenterServer-$VC_SHORTNAME","vCenterInventoryService-$VC_SHORTNAME",
-                    "vCenterLogBrowser-$VC_SHORTNAME","vCenterWebClient-$VC_SHORTNAME","VMwareUpdateManager-$VC_SHORTNAME")
+    $Services = @("vCenterSSO-$VC_SHORTNAME","vCenterServer-$VC_SHORTNAME","vCenterInventoryService-$VC_SHORTNAME","vCenterLogBrowser-$VC_SHORTNAME","vCenterWebClient-$VC_SHORTNAME")
     # The path to the openssl executable
     $OpenSSLExe =  "c:\hol\ssl\ssl-certificate-updater-tool-1308332\tools\openssl\openssl.exe"
-  
-    if (!(Test-Path $OpenSSLExe)) {throw "$OpenSSLExe required"}
-    New-Alias -Name OpenSSL $OpenSSLExe
    
+    if (!(Test-Path $OpenSSLExe)) {throw "$OpenSSLExe required"}
+    if (!(Get-Alias OpenSSL -EA 0)) {
+      New-Alias -Name OpenSSL $OpenSSLExe
+    }
+    
+    if (!(Test-Path $CA_Certificate)) {throw "CA_Certificate required"}
+
     if(!(Test-Path $WorkingDir)) {
       New-Item $WorkingDir -Type Directory
     }
-  
+   
     Set-Location $WorkingDir
-  
+   
     ForEach ($Service in $Services) {
       if(!(Test-Path $Service)) {
         New-Item $Service -Type Directory
       }
-    
+     
       Set-Location $Service
-         
+          
       Write-Debug "$Service : Converting Private Key to RSA"
       Copy "$WorkingDir\$Service\rui.key" "$WorkingDir\$Service\rui-orig.key"
       OpenSSL rsa -in "$WorkingDir\$Service\rui-orig.key" -out "$WorkingDir\$Service\rui.key"
-    
+     
       Write-Debug "$Service : Submitting to $CA_Name"
       certreq -submit -attrib $CA_Template -config "$CA_Name" "$WorkingDir\$Service\rui.csr" "$WorkingDir\$Service\rui.crt"
-    
+     
+      Write-Debug "$Service : Generating PEM / Cert chain"
+      Copy-Item "$WorkingDir\$Service\rui.crt" "$WorkingDir\$Service\rui.pem"
+	  Get-Content "$CA_Certificate" | Out-file -Append -Encoding ASCII  "$WorkingDir\$Service\rui.pem"
+
       Write-Debug "$Service : Generating PFX"
       OpenSSL pkcs12 -export -in "$WorkingDir\$Service\rui.crt" -inkey "$WorkingDir\$Service\rui.key" -certfile "$CA_Certificate" -name "rui" -passout pass:testpassword -out "$WorkingDir\$Service\rui.pfx"
-    
+     
       Set-Location $WorkingDir
     }
   }
-} #Create-VcenterSslCertificatesWin 
+} #New-VcenterSslCertificatesWin
+
 
 ###############################################################################
 
