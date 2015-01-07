@@ -10,7 +10,7 @@ ports or via URLs. Records progress into a file for consumption by DesktopInfo.
 Modifies 6th NIC on vpodrouter to report status to vCD
 
 .NOTES
-LabStartup.ps1 v3.7.1 - December 29, 2014 (unified version) 
+LabStartup.ps1 v3.8 - January 7, 2015 (unified version) 
 * The format of the TCPServices and ESXiHosts entries is "server:port_number"
 * URLs must begin with http:// or https:// (with valid certificate)
 * The IP address on the NIC of the vpodrouter is set using SSH (plink.exe) 
@@ -271,6 +271,25 @@ Function Connect-VC ([string]$server, [string]$username, [string]$password, [REF
 		$result.value = "fail"
 	}
 } #End Connect-VC
+
+
+Function Test-Ping ([string]$server, [REF]$result) {
+<#
+	This function makes sure a host is responding to a PING
+	It does not attempt to validate anything beyond a simple response
+	It sets the $result variable to 'success' or 'fail' based on the result
+#>
+	Try {
+		$tmp = Test-Connection -ComputerName $server -Quiet
+		Write-Output "Successfully pinged $server"
+		$result.value = "success"
+	}
+	Catch {
+		Write-Output "Cannot ping $server"
+		$result.value = "fail"
+	}
+} #End Test-Ping
+
 
 Function Test-TcpPortOpen ([string]$server, [int]$port, [REF]$result) {
 <#
