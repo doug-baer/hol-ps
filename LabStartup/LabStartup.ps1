@@ -10,7 +10,7 @@ ports or via URLs. Records progress into a file for consumption by DesktopInfo.
 Modifies 6th NIC on vpodrouter to report status to vCD
 
 .NOTES
-LabStartup.ps1 v3.8 - January 7, 2015 (unified version) 
+LabStartup.ps1 v3.8.1 - January 7, 2015 (unified version) 
 * The format of the TCPServices and ESXiHosts entries is "server:port_number"
 * URLs must begin with http:// or https:// (with valid certificate)
 * The IP address on the NIC of the vpodrouter is set using SSH (plink.exe) 
@@ -100,6 +100,11 @@ $URLs = @{
 	'https://vcsa-01a.corp.local:9443/vsphere-client/' = 'vSphere Web Client'
 	'http://stga-01a.corp.local/account/login' = 'FreeNAS'
 	}
+
+# IP addresses to be pinged
+$Pings = @(
+	'192.168.110.1'
+)
 
 #Remove the file that causes a "Reset" message in Firefox
 $userProfilePath = (Get-Childitem env:UserProfile).Value
@@ -551,10 +556,18 @@ Foreach ($service in $linuxServices) {
 Write-Output "$(Get-Date) Finished $action Linux services"
 
 ##############################################################################
-##### Lab Startup - STEP #3 (Testing Ports & Services) 
+##### Lab Startup - STEP #3 (Testing Pings, Ports & Services) 
 ##############################################################################
 
 Write-Progress "Testing TCP ports" 'GOOD-3'
+
+# Testing Pings
+Foreach ($ping in $Pings) {
+	Do { 
+		Test-Ping $ping ([REF]$result)
+		LabStartup-Sleep $sleepSeconds
+	} Until ($result -eq "success")
+}
 
 #Testing services are answering on TCP ports 
 Foreach ($service in $TCPservices) {
