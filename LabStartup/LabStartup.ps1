@@ -205,6 +205,28 @@ Function Report-VpodStatus ([string] $newStatus) {
 	$currentStatus = $newStatus
 } #End Report-VpodStatus
 
+Function RunWinCmd ([string]$wcmd, [REF]$result) {
+<#
+  Execute a Windows command on the local machine with some degree of error checking
+#>
+	$errorVar = ""
+	
+	# need this in order to capture output but make certain not already included
+	if ( !($wcmd.Contains(" 2>&1"))) {
+	   $wcmd += ' 2>&1'
+	}
+	
+	$output = Invoke-Expression -Command $wcmd -ErrorVariable errorVar
+	
+	if ( $errorVar.Length -gt 0 ) {
+	  Write-Host "Error: $errorVar"
+	  $result.value = "fail"
+	} else {
+	  $result.value = "success"
+	  return $output
+	}
+} #End RunWinCmd
+
 Function Write-Progress ([string] $msg, [string] $code) {
 	$myTime = $(Get-Date)
 	If( $code -eq 'READY' ) {
@@ -592,6 +614,21 @@ Foreach ($url in $($URLs.Keys)) {
 #Write-Progress "Doing My Thing" 'GOOD-4'
 ## Any final checks here. Maybe you need to check something after the
 ## services are started/restarted.
+
+# example RunWinCmd 
+<# 
+
+$wcmd = "ipconfig"
+Do { 
+		$output = RunWinCmd $wcmd ([REF]$result)
+		ForEach ($line in $output) {
+		    Write-Host $line
+		}
+		Start-Sleep 5
+	} Until ($result -eq "success")
+
+#>
+
 #Write-Progress "Finished Doing My Thing" 'GOOD-5'
 
 
