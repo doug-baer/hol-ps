@@ -65,33 +65,3 @@ Function Start-Nested ( [array] $records ) {
 		}
 	}
 } #End Start-Nested
-
-Function Invoke-Plink ([string]$remoteHost, [string]$login, [string]$passwd, [string]$command) {
-<#
-	This function executes the specified command on the remote host via SSH
-#>
-	Invoke-Expression "Echo Y | $plinkPath -ssh $remoteHost -l $login -pw $passwd $command"
-} #End Invoke-Plink
-
-Function Report-VpodStatus ([string] $newStatus) {
-	$server = 'router.corp.local'
-	$newStatus = "$IPNET." + $statusTable[$newStatus]
-	$bcast = "$IPNET." + "255"
-	#replace the IP address on the vpodrouter's 6th NIC with our indicator code
-	$lcmd = "sudo /sbin/ifconfig eth5 broadcast $bcast netmask 255.255.255.0 $newStatus"
-	#Write-Host $lcmd
-	$msg = Invoke-Plink -remoteHost $server -login holuser -passwd $linuxpassword -command '$lcmd'
-	$currentStatus = $newStatus
-} #End Report-VpodStatus
-
-Function Write-Progress ([string] $msg, [string] $code) {
-	$myTime = $(Get-Date)
-	If( $code -eq 'READY' ) {
-		$dateCode = "{0:D2}/{1:D2} {2:D2}:{3:D2}" -f $myTime.month,$myTime.day,$myTime.hour,$myTime.minute
-		Set-Content -Value ([byte[]][char[]] "$msg $dateCode") -Path $statusFile -Encoding Byte
-	} Else {
-		$dateCode = "{0:D2}:{1:D2}" -f $myTime.hour,$myTime.minute
-		Set-Content -Value ([byte[]][char[]] "$dateCode $msg ") -Path $statusFile -Encoding Byte
-	}
-	Report-VpodStatus $code
-} #End Write-Progress
