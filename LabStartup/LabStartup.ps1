@@ -88,8 +88,10 @@ $vApps = @(
 
 #Virtual Machines to be powered on
 # if multiple vCenters, specify the FQDN of the owning vCenter after the colon
+# optionally indicate a pause with the "Pause" record.  In this case the number after the colon is the seconds to pause.
 $VMs = @(
 	'base-sles-01a'
+#	'Pause:30'
 #	'full-sles-01a:vcsa-01a.corp.local'
 	)
 
