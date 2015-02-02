@@ -1,22 +1,30 @@
 # starts the nested VMs or vApps
 Function Start-Nested ( [array] $records ) {
 
+    If ($records -eq $null ) { 
+		Write-Host " no records! "
+		Return
+	}
+
 	ForEach ($record in $records) {
 		# separate out the vVM name and the owning vCenter
 		($name,$vcenter) = $record.Split(":")
 		# If blank, default to the first/only vCenter
-		If( $vcenter -eq $null ) { $vcenter = $vCenters[0] }
+		If ( $vcenter -eq $null ) { $vcenter = $vCenters[0] }
+		If ( $name -eq "Pause" ) {
+		    Write-Host "Pausing for $vcenter seconds..."
+			LabStartup-Sleep $vcenter
+			Continue
+		}
 		
 		If( $vApp = Get-VApp -Name $name -Server $vcenter -ea 0 ) {
 			$type = "vApp"
-			$startCMD = "Start-VApp -VApp $vApp -RunAsync -Server $vcenter"
-			$getCMD = "Get-VApp $name -Server $vcenter"
+			$entity = $vApp
 			$powerState = [string]$vApp.Status
 			$goodPower = "Started"
 		} ElseIf( $vm = Get-VM -Name $name -Server $vcenter -ea 0 ) {
 			$type = "vVM"
-			$startCMD = "Start-VM -VM $vm -RunAsync -Server $vcenter"
-			$getCMD = "Get-VM $name -Server $vcenter"
+			$entity = $vm
 			$powerState = [string]$vm.PowerState
 			$goodPower = "PoweredOn"
 		} Else {
@@ -28,19 +36,25 @@ Function Start-Nested ( [array] $records ) {
 		While ( !($powerState.Contains($goodPower)) ) {
 			If ( !($powerState.Contains("Starting")) ) {
 				Write-Output $("Starting {0} {1} on {2}" -f $type, $name, $vcenter )
-				$task = Invoke-Expression $startCMD
 				If ( $type -eq "vVM" ) {
+					$task = Start-VM $entity -RunAsync -Server $vcenter
 					$tasks = Get-Task -Server $vcenter
 					ForEach ($task in $tasks) {
 						If ($task.ObjectId -eq $vm.Id) { Break }
 					}
+				} Else {
+					$task = Start-VApp $entity -RunAsync -Server $vcenter
 				}
 			}
 			LabStartup-Sleep $sleepSeconds
 			$task = Get-Task -Id $task.Id -Server $vcenter
-			$entity = Invoke-Expression $getCMD
-			If ( $type -eq "vApp") { $powerState = [string]$entity.Status }
-			Else { $powerState = [string]$entity.PowerState }
+			If ( $type -eq "vVM" ) {
+				$entity = Get-VM -Name $name -Server $vcenter
+				$powerState = [string]$entity.PowerState
+			} Else {
+				$entity = Get-VApp -Name $name -Server $vcenter
+				$powerState = [string]$entity.Status
+			}
 			If ($task.State -eq "Error") {
 				Write-Progress "FATAL ERROR" 'FAIL-2'  
 				$currentRunningSeconds = Get-RuntimeSeconds $startTime
