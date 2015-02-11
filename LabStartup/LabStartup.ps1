@@ -143,7 +143,7 @@ $statusTable = @{
 # starts the nested VMs or vApps
 Function Start-Nested ( [array] $records ) {
 
-    If ($records -eq $null ) { 
+	If ($records -eq $null ) { 
 		Write-Host " no records! "
 		Return
 	}
@@ -258,6 +258,14 @@ Function Write-Progress ([string] $msg, [string] $code) {
 	If( $code -eq 'READY' ) {
 		$dateCode = "{0:D2}/{1:D2} {2:D2}:{3:D2}" -f $myTime.month,$myTime.day,$myTime.hour,$myTime.minute
 		Set-Content -Value ([byte[]][char[]] "$msg $dateCode") -Path $statusFile -Encoding Byte
+		#also change text color to Green (55cc77) in desktopInfo
+		(Get-Content $desktopInfo) | % { 
+			$line = $_
+			If( $line -match 'Lab Status' ) {
+				$line = $line -replace '3A3AFA','55CC77'
+			}
+			$line
+		} | Out-File -FilePath $desktopInfo -encoding "ASCII"
 	} Else {
 		$dateCode = "{0:D2}:{1:D2}" -f $myTime.hour,$myTime.minute
 		Set-Content -Value ([byte[]][char[]] "$dateCode $msg ") -Path $statusFile -Encoding Byte
@@ -268,12 +276,13 @@ Function Write-Progress ([string] $msg, [string] $code) {
 ##############################################################################
 
 If( Test-Path $desktopInfo ) {
-	# read the desktopInfo.ini configuration file and find the line that begins with "HEADER=active:1"
-	$TMP = Select-String $desktopInfo -pattern "^HEADER=active:1"
+	# read the desktopInfo.ini configuration file and find the line that begins with "COMMENT="
+	# NOTE: new DesktopInfo 1.51 format
+	$TMP = Select-String $desktopInfo -pattern "^COMMENT=active:1"
 	# split the line on the ":"
 	$TMP = $TMP.Line.Split(":")
 	# split the last field on the "-" and space characters
-	$TMP = $TMP[4].Split("- ")
+	$TMP = $TMP[5].Split("- ")
 	Try {
 	# the YEAR is the first two characters of the last field as an integer
 		$YEAR = [int]$TMP[2].SubString(0,2)
