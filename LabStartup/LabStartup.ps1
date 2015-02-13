@@ -365,12 +365,11 @@ Function Test-Ping ([string]$server, [REF]$result) {
 	It does not attempt to validate anything beyond a simple response
 	It sets the $result variable to 'success' or 'fail' based on the result
 #>
-	Try {
-		$tmp = Test-Connection -ComputerName $server -Quiet
+	If ( Test-Connection -ComputerName $server -Quiet ) {
 		Write-Output "Successfully pinged $server"
 		$result.value = "success"
 	}
-	Catch {
+	Else {
 		Write-Output "Cannot ping $server"
 		$result.value = "fail"
 	}
