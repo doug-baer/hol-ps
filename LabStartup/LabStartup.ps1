@@ -50,6 +50,10 @@ $linuxpassword = 'VMware1!'
 $statusFile = "C:\HOL\startup_status.txt"
 # sleep time between checks
 $sleepSeconds = 10
+# number of minutes it takes vCenter to boot before API connection
+$vcBootMinutes = 10
+# number of minutes it takes for vSphere Web Client URL
+$ngcBootMinutes = 15
 # if still running this long, fail the pod
 $maxMinutesBeforeFail = 30
 # path to the DesktopInfo config -- used to get the lab SKU
@@ -340,7 +344,14 @@ Function Restart-VC ([string]$server, [REF]$result){
 		Write-Host "Trying appliance vCenter 6 reboot..."
 		$lcmd = "shutdown reboot -r now 2>&1"
 		$msg = Invoke-Plink -remoteHost $server -login $linuxuser -passwd $linuxpassword -command $lcmd
-		If ( $msg.Contains("The system is going down for reboot NOW!") ) { $result.Value = "success" }
+		If ( $msg -ne $null ) {
+			Write-Host "msg from vSphere 6 restart: $msg"
+			If ( $msg -eq "The system is going down for reboot NOW!") {  # not sure what this should be for success
+				$result.Value = "success"
+				Return
+			}
+		}
+		If ( $msg -eq $null ) { $result.Value = "success" }
 		Else {
 			# if not success then try vSphere 5
 			Write-Host "Trying appliance vCenter 5 reboot..."
@@ -583,29 +594,38 @@ Foreach ($ESXihost in $ESXiHosts) {
 }
 
 Write-Progress "Connecting vCenter" 'STARTING'
-# attempt to connect to vCenters - if fail, restart vCenter ONCE then fail the vPod if still no connection
+# attempt to connect to each vCenter and restart if no connection by $vcBootMinutes
+$VCstartTime = @{}
 Foreach ($vcserver in $vCenters) {
 	$VCrestarted = $false
-	$ctr = 0
+	$VCstartTime[$vcserver] = $startTime
+	# do a ping test first
+	Test-Ping $vcserver ([REF]$result)
+	If ($result -ne "success" ) {
+		LabFail "Cannot ping vCenter $vcserver.  Failing lab."
+	}
 	Do {
 		Connect-VC $vcserver $vcuser $password ([REF]$result)
 		LabStartup-Sleep $sleepSeconds
-		$ctr++
-		If ( $ctr -eq 60 ) { 
+		$currentRunningSeconds = Get-RuntimeSeconds $VCstartTime[$vcserver]
+		$currentRunningMinutes = $currentRunningSeconds / 60
+		If( $currentRunningMinutes -gt $vcBootMinutes ) {
 			If ( $VCrestarted -eq $false ) {  # try restarting vCenter to fix the issue
 				Write-Output "Restarting vCenter $vcserver" 
 				Restart-VC $vcserver ([REF]$VCrestarted)
 				If ($VCrestarted -eq "success") { 
-					$maxMinutesBeforeFail = $maxMinutesBeforeFail + 10
-					$ctr = 0
+					$VCstartTime[$vcserver] = $(Get-Date)  # record the reboot for this VC
+					# add more time before fail due to VC reboot
+					$maxMinutesBeforeFail += $vcBootMinutes
+					# reset the currentRunningMinutes
+					$currentRunningSeconds = Get-RuntimeSeconds $VCstartTime[$vcserver]
+					$currentRunningMinutes = $currentRunningSeconds / 60
 				} Else {
 					LabFail "Cannot restart vCenter $vcserver.  Failing lab."
 				}
-			} 
+			}
 		}
-		If ( ($ctr -eq 60) -And ($VCrestarted -eq "success" ) ) {
-			$currentRunningSeconds = Get-RuntimeSeconds $startTime
-			$currentRunningMinutes = $currentRunningSeconds / 60
+		If ( ($currentRunningMinutes -gt $vcBootMinutes) -And ($VCrestarted -eq "success" ) ) {
 			LabFail "Failing the lab after restarting vCenter $vcserver"
 		}
 	} Until ($result -eq "success")
@@ -699,30 +719,35 @@ Write-Progress "Checking URLs" 'GOOD-4'
 Foreach ($url in $($URLs.Keys)) {
 	$isVC = $false
 	$VCrestarted = $false
-	$ctr = 0
-    Foreach ( $vc in $vCenters ) {
-		If ( $url.Contains( $vc ) ) { $isVC = $true}
+    Foreach ( $vcserver in $vCenters ) {
+		If ( $url.Contains( $vcserver ) ) { 
+			$isVC = $true
+			Break
+		}
 	}
 	Do { 
 		Test-URL $url $URLs[$url] ([REF]$result)
-		LabStartup-Sleep $sleepSeconds
-		If ( ($ctr -eq 60) -And ($isVC) ) { 
-			If ( $VCrestarted -eq $false ) {  # try restarting vCenter to fix the issue
+		If ( ($isVC) -And ($result -ne "success") ) {
+			$currentRunningSeconds = Get-RuntimeSeconds $VCstartTime[$vcserver]
+			$currentRunningMinutes = $currentRunningSeconds / 60
+			If( ($currentRunningMinutes -gt $ngcBootMinutes ) -And !($VCrestarted) ) { 
+				# try restarting vCenter to fix the issue
 				Write-Output "Restarting vCenter $vcserver" 
 				Restart-VC $vcserver ([REF]$VCrestarted)
 				If ($VCrestarted -eq "success") { 
-					$maxMinutesBeforeFail = $maxMinutesBeforeFail + 10
-					$ctr = 0
+					$maxMinutesBeforeFail += $ngcBootMinutes
+					$VCstartTime[$vcserver] = $(Get-Date)  # record the reboot for this VC
+					$currentRunningSeconds = Get-RuntimeSeconds $VCstartTime[$vcserver]
+					$currentRunningMinutes = $currentRunningSeconds / 60
 				} Else {
 					LabFail "Cannot restart vCenter $vcserver.  Failing lab."
 				}
-			} 
-		}
-		If ( ($ctr -eq 60) -And ($VCrestarted -eq "success" ) -And ($isVC) ) {
-			$currentRunningSeconds = Get-RuntimeSeconds $startTime
-			$currentRunningMinutes = $currentRunningSeconds / 60
-			LabFail "Failing the lab after restarting vCenter $vcserver"
-		}
+			}
+			If ( ($currentRunningMinutes -gt $ngcBootMinutes ) -And ($VCrestarted -eq "success" ) ) {
+				LabFail "Failing the lab after restarting vCenter $vcserver"
+			}
+		}		
+		LabStartup-Sleep $sleepSeconds
 	} Until ($result -eq "success")
 }
 
