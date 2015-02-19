@@ -59,7 +59,7 @@ $maxMinutesBeforeFail = 30
 # path to the DesktopInfo config -- used to get the lab SKU
 $desktopInfo = 'C:\DesktopInfo\desktopinfo.ini'
 # path to Plink.exe -- for status & managing Linux
-$plinkPath = 'C:\hol\plink.exe'
+$plinkPath = 'C:\hol\Tools\plink.exe'
 #must be defined in order to pass as reference for looping
 $result = ''
 
