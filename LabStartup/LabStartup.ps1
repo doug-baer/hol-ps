@@ -34,7 +34,7 @@ with an encoded status code as the script progresses.
 
 
 # include the LabStartup functions
-. "C:\hol\LabStartupFunctions.ps1"
+. ".\LabStartupFunctions.ps1"
 
 $startTime = $(Get-Date)
 Write-Output "$startTime beginning LabStartup"
