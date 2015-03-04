@@ -88,6 +88,7 @@ $windowsServices = @(
 #Linux Services to be checked / started
 $linuxServices = @(
 	'router.corp.local:vmware-tools'
+	'vcsa-01a.corp.local:vsphere-client'
 )
 
 $vApps = @(

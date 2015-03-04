@@ -113,6 +113,9 @@ Function Connect-vCenter ( [array] $vCenters ) {
 } #End Connect-vCenter
 
 Function Connect-Restart-vCenter ( [array] $vCenters ) {
+	
+	$waitSecs = '30' # seconds to wait for service startup/shutdown
+	$action = 'start'
 	Foreach ($vcserver in $vCenters) {
 		$VCrestarted = $false
 		$VCstartTime = $startTime
@@ -146,6 +149,30 @@ Function Connect-Restart-vCenter ( [array] $vCenters ) {
 				LabFail "Failing the lab after restarting vCenter $vcserver"
 			}
 		} Until ($result -eq "success")
+		# make certain the NGC service is started
+		Foreach ($service in $linuxServices) {
+			If ( $service.Contains($vcserver) ) {
+				($lserver,$lservice) = $service.Split(":")
+				Write-Output "Performing $action $lservice on $lserver"
+				Do {
+					ManageLinuxService $action $lserver $lservice $waitSecs ([REF]$result)
+				} Until ($result -eq "success")
+				$NGCclient = "started"
+				Break
+			}
+		}
+		If ( $NGCclient -ne "started" ) {  # Windows vCenter?
+			Foreach ($service in $windowsServices) {
+				If ( $service.Contains($vcserver) ) {
+					($wserver,$wservice) = $service.Split(":")
+					Write-Output "Performing $action $wservice on $wserver"
+					Do {
+						ManageWindowsService $action $wserver $wservice $waitSecs ([REF]$result)
+					} Until ($result -eq "success")
+					Break
+				}
+			}
+		}
 		# now check NGC URL
 		Foreach ($url in $($URLs.Keys)) {
 			If ( $url.Contains( $vcserver ) ) { Break }
