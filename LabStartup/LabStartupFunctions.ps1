@@ -95,12 +95,21 @@ Function Write-Progress ([string] $msg, [string] $code) {
 	If( $code -eq 'READY' ) {
 		$dateCode = "{0:D2}/{1:D2} {2:D2}:{3:D2}" -f $myTime.month,$myTime.day,$myTime.hour,$myTime.minute
 		Set-Content -Value ([byte[]][char[]] "$msg $dateCode") -Path $statusFile -Encoding Byte
-	} Else {
+		#also change text color to Green (55cc77) in desktopInfo
+		(Get-Content $desktopInfo) | % { 
+			$line = $_
+			If( $line -match 'Lab Status' ) {
+				$line = $line -replace '3A3AFA','55CC77'
+			}
+			$line
+		} | Out-File -FilePath $desktopInfo -encoding "ASCII"
+		} Else {
 		$dateCode = "{0:D2}:{1:D2}" -f $myTime.hour,$myTime.minute
 		Set-Content -Value ([byte[]][char[]] "$dateCode $msg ") -Path $statusFile -Encoding Byte
 	}
 	Report-VpodStatus $code
 } #End Write-Progress
+
 
 Function Connect-vCenter ( [array] $vCenters ) {
 

@@ -10,7 +10,8 @@ ports or via URLs. Records progress into a file for consumption by DesktopInfo.
 Modifies 6th NIC on vpodrouter to report status to vCD
 
 .NOTES
-LabStartup.ps1 v3.8.1 - January 7, 2015 (unified version) 
+LabStartup.ps1 v4.0 - March 5, 2015 
+* New version extracts a majority of the functions into LabStartupFunctons.ps1
 * The format of the TCPServices and ESXiHosts entries is "server:port_number"
 * URLs must begin with http:// or https:// (with valid certificate)
 * The IP address on the NIC of the vpodrouter is set using SSH (plink.exe) 
@@ -44,7 +45,7 @@ Write-Output "$startTime beginning LabStartup"
 ##############################################################################
 
 # Credentials used to login to vCenters
-$vcuser = 'CORP\Administrator'
+$vcuser = 'Administrator@corp.local'
 $password = 'VMware1!'
 
 # Credentials used to login to Linux machines
@@ -99,9 +100,9 @@ $vApps = @(
 # if multiple vCenters, specify the FQDN of the owning vCenter after the colon
 # optionally indicate a pause with the "Pause" record.  In this case the number after the colon is the seconds to pause.
 $VMs = @(
-	'base-sles-01a'
+#	'linux-base-01a'
 #	'Pause:30'
-#	'full-sles-01a:vcsa-01a.corp.local'
+#	'linux-desk-01a:vcsa-01a.corp.local'
 	)
 
 #TCP Ports to be checked (host listens on port)
