@@ -2,20 +2,19 @@
 
 .SYNOPSIS
 Performs various tasks to ensure that a vPod is ready to run, and then provides 
-feedback to the user (via DesktopInfo) and management system via vpodrouter NIC.
+feedback to the user (via DesktopInfo) and HOL management system via vpodrouter NIC.
 
 .DESCRIPTION
-Connects to vCenter, Powers up vVMs, waits for availability of services on TCP 
-ports or via URLs. Records progress into a file for consumption by DesktopInfo. 
-Modifies 6th NIC on vpodrouter to report status to vCD
+Checks storage, connects to vCenter, Powers up vVMs, waits for availability of services 
+on TCP ports or via URLs. Records progress into a log file and simple status into a file 
+for consumption by DesktopInfo. Modifies 6th NIC on vpodrouter to report status upstream.
 
 .NOTES
-LabStartup.ps1 v4.0 - March 5, 2015 
+LabStartup.ps1 v4.0.1 - March 9, 2015 
 * New version extracts a majority of the functions into LabStartupFunctons.ps1
-* The format of the TCPServices and ESXiHosts entries is "server:port_number"
 * URLs must begin with http:// or https:// (with valid certificate)
 * The IP address on the NIC of the vpodrouter is set using SSH (plink.exe) 
-  and sudo (installed on the router) using the holuser account. 
+  and sudo (installed on the vpodrouter) using the holuser account. 
 
 
 .EXAMPLE
@@ -24,18 +23,29 @@ LabStartup.ps1
 C:\WINDOWS\system32\windowspowershell\v1.0\powershell.exe -windowstyle hidden "& 'c:\HOL\LabStartup.ps1'"
 
 .INPUTS
-No inputs
+Lab SKU is read from the 'C:\DesktopInfo\desktopinfo.ini' file, which also displays
+this information on the desktop of ControlCenter
 
 .OUTPUTS
-Status messages are written to the console or output file and the C:\HOL\startup_status.txt ($statusFile) is updated with periodic status for consumption by DesktopInfo.exe. 
-In addition, the IP address of the 6th NIC on the vpodrouter (router.corp.local) is modified 
+Log messages are written to the console or redirected to an output file and 
+C:\HOL\startup_status.txt ($statusFile) is updated with periodic status for consumption by DesktopInfo.exe using the Write-Progress function.
+The IP address of the 6th NIC on the vpodrouter (router.corp.local) is modified 
 with an encoded status code as the script progresses.
-
+Upon failure, whether explicit or via script timeout, the script will set the FAILURE 
+indicator and halt
 #>
 
 
-# include the LabStartup functions
-. ".\LabStartupFunctions.ps1"
+# include the LabStartup functions from the same directory as LanStartup.ps1
+$Invocation = (Get-Variable MyInvocation).Value
+$InvocationPath = Join-Path (Split-Path $Invocation.MyCommand.Path) 'LabStartupFunctions.ps1' )
+If( Test-Path $InvocationPath ) {
+	. $InvocationPath
+	Write-Host "Loading functions from $InvocationPath"
+} Else {
+	Write-Host -Fore Red "ERROR: Unable to find $InvocationPath"
+	Exit
+}
 
 $startTime = $(Get-Date)
 Write-Output "$startTime beginning LabStartup"
@@ -68,9 +78,11 @@ $plinkPath = 'C:\hol\Tools\plink.exe'
 #must be defined in order to pass as reference for looping
 $result = ''
 
+##############################################################################
 ### Populate the following with values appropriate to your lab
+##############################################################################
 
-#FQDN of vCenter server(s)
+#FQDN(s) of vCenter server(s)
 $vCenters = @(
 	'vcsa-01a.corp.local'
 )
@@ -96,9 +108,10 @@ $vApps = @(
 #	'example vApp:vcsa-01a.corp.local'
 )
 
-# Virtual Machines to be powered on
+# Nested Virtual Machines to be powered on
 # if multiple vCenters, specify the FQDN of the owning vCenter after the colon
-# optionally indicate a pause with the "Pause" record.  In this case the number after the colon is the seconds to pause.
+# optionally indicate a pause with the "Pause" record.  In this case the number 
+#  after the colon is the number of seconds to wait before continuing.
 $VMs = @(
 #	'linux-base-01a'
 #	'Pause:30'
@@ -126,7 +139,7 @@ $Pings = @(
 ##### Preliminary Tasks
 ##############################################################################
 
-#Remove the file that causes a "Reset" message in Firefox
+#Remove the file that causes the "Reset" message in Firefox
 $userProfilePath = (Get-Childitem env:UserProfile).Value
 $firefoxProfiles = Get-ChildItem (Join-Path $userProfilePath 'AppData\Roaming\Mozilla\Firefox\Profiles')
 ForEach ($firefoxProfile in $firefoxProfiles) {
@@ -337,4 +350,5 @@ Do {
 #Report Final State
 Write-Progress "Ready" 'READY'
 Write-Output $( "$(Get-Date) LabStartup Finished - runtime was {0:N0} minutes." -f  ((Get-RuntimeSeconds $startTime) / 60) )
+
 ##############################################################################
