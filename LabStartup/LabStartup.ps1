@@ -128,7 +128,7 @@ $TCPservices = @(
 $URLs = @{
 	'https://vcsa-01a.corp.local:9443/vsphere-client/' = 'vSphere Web Client'
 	'http://stga-01a.corp.local/account/login' = 'FreeNAS'
-	'https://psc-01a.corp.local/' = 'Platform'
+	'https://psc-01a.corp.local/websso/' = 'Welcome'
 	}
 
 # IP addresses to be pinged
