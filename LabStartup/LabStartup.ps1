@@ -38,7 +38,7 @@ indicator and halt
 
 # include the LabStartup functions from the same directory as LanStartup.ps1
 $Invocation = (Get-Variable MyInvocation).Value
-$InvocationPath = Join-Path (Split-Path $Invocation.MyCommand.Path) 'LabStartupFunctions.ps1' )
+$InvocationPath = Join-Path (Split-Path $Invocation.MyCommand.Path) 'LabStartupFunctions.ps1'
 If( Test-Path $InvocationPath ) {
 	. $InvocationPath
 	Write-Host "Loading functions from $InvocationPath"
@@ -128,6 +128,7 @@ $TCPservices = @(
 $URLs = @{
 	'https://vcsa-01a.corp.local:9443/vsphere-client/' = 'vSphere Web Client'
 	'http://stga-01a.corp.local/account/login' = 'FreeNAS'
+	'https://psc-01a.corp.local/' = 'Platform'
 	}
 
 # IP addresses to be pinged

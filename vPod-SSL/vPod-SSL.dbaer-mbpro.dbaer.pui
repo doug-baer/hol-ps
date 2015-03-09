@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="ASCII"?>
+<!DOCTYPE PRJ SYSTEM "vPod-SSL.dbaer-mbpro.dbaer.dtd">
+<PRJ>
+  <Project_Information>
+    <Working_Time>8225</Working_Time>
+    <Project_Start>25000000340000000A00000009000000020000007300000001000000430000000000000000000000909DFFFFFFFFFFFF1C61030401000000D1</Project_Start>
+  </Project_Information>
+  <Active_Settings>
+    <Active_File_Display_Mode>-1</Active_File_Display_Mode>
+  </Active_Settings>
+  <Open_Files>
+    <File>/Users/dbaer/Documents/GitHub/hol-ps/vPod-SSL/Get-URL-SSL-Info.ps1</File>
+    <File>/Users/dbaer/Documents/GitHub/hol-ps/vPod-SSL/hol-ssl-modules.psm1</File>
+  </Open_Files>
+</PRJ>
