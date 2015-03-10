@@ -10,7 +10,7 @@ on TCP ports or via URLs. Records progress into a log file and simple status int
 for consumption by DesktopInfo. Modifies 6th NIC on vpodrouter to report status upstream.
 
 .NOTES
-LabStartup.ps1 v4.0.1 - March 9, 2015 
+LabStartup.ps1 v4.0.2 - March 10, 2015 
 * New version extracts a majority of the functions into LabStartupFunctons.ps1
 * URLs must begin with http:// or https:// (with valid certificate)
 * The IP address on the NIC of the vpodrouter is set using SSH (plink.exe) 
@@ -181,7 +181,11 @@ If( Test-Path $desktopInfo ) {
 
 #Load the VMware PowerCLI tools
 Try {
-  Add-PSSnapin VMware.VimAutomation.Core -ErrorAction 1 
+	#v5.x
+	#  Add-PSSnapin VMware.VimAutomation.Core -ErrorAction 1
+	#v6.x
+	$PowerCliInit = 'C:\Program Files (x86)\VMware\Infrastructure\vSphere PowerCLI\Scripts\Initialize-PowerCLIEnvironment.ps1'
+	. $PowerCliInit
 } 
 Catch {
 	Write-Host "No PowerCLI found, unable to continue."
