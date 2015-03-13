@@ -36,7 +36,7 @@ indicator and halt
 #>
 
 
-# include the LabStartup functions from the same directory as LanStartup.ps1
+# include the LabStartup functions from the same directory as LabStartup.ps1
 $Invocation = (Get-Variable MyInvocation).Value
 $InvocationPath = Join-Path (Split-Path $Invocation.MyCommand.Path) 'LabStartupFunctions.ps1'
 If( Test-Path $InvocationPath ) {
