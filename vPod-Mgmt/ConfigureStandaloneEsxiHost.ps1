@@ -8,10 +8,13 @@
 $esxSettings = @{
 	'UserVars.DcuiTimeOut' = 0
 	'UserVars.SuppressShellWarning' = 1
-	'Vpx.Vpxa.Config.log.level' = 'info'
 	'Syslog.global.logHost' = 'udp://vcsa-01a.corp.local:514'
 	'Syslog.global.defaultRotate' = 2
 }
+
+#only valid setting if attached to vCenter
+# 	'Vpx.Vpxa.Config.log.level' = 'info'
+
 
 $hostNames = $('esx-03a.corp.local','esx-04a.corp.local')
 $rootPassword = 'VMware1!'
