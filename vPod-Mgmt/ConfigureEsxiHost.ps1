@@ -9,7 +9,7 @@ $esxSettings = @{
 	'UserVars.DcuiTimeOut' = 0
 	'UserVars.SuppressShellWarning' = 1
 	'Vpx.Vpxa.Config.log.level' = 'info'
-	'Syslog.global.logHost' = 'udp://vcsa-01b.corp.local:514'
+	'Syslog.global.logHost' = 'udp://vcsa-01a.corp.local:514'
 	'Syslog.global.defaultRotate' = 2
 }
 
