@@ -191,10 +191,11 @@ PROCESS {
 	$report = @()
 	foreach ( $Rule in $ClaimRules ) {
 		if ( $Rule.Device -eq $LUN_CName ) {
-			$line = ""| select Hostname, Device, Options
+			$line = ""| select Hostname, Device, Options, IsSSD
 			$line.Device = $Rule.Device
 			$line.Options = $Rule.Options
 			$line.HostName = $VMHost.Name
+			$line.IsSSD = (Get-ScsiLUN -CanonicalName $LUN_CName -VMhost $VMHost).ExtensionData.Ssd 
 			$report += $line
 		}
 	}
