@@ -2,8 +2,8 @@
 .NOTES
 	Name:			Sync-VPod-Pull
 	Author:		Doug Baer
-	Version:	2.1
-	Date:			2015-01-02
+	Version:	2.2
+	Date:			2015-04-03
 
 .SYNOPSIS
 	Efficiently synchronize two OVF exports between sites using specified local data as the seed.
@@ -44,17 +44,17 @@
 		default = "E:\LabMaps"
 
 .EXAMPLE - using defaults
-Sync-vPod-Pull.ps1 -OldName HOL-SDC-1400-v1 -NewName HOL-SDC-1400-v2
+	Sync-vPod-Pull.ps1 -OldName HOL-SDC-1400-v1 -NewName HOL-SDC-1400-v2
 
 .EXAMPLE
-Sync-vPod-Pull.ps1 -OldName HOL-SDC-1400-v1 -NewName HOL-SDC-1400-v2 -CatalogHost HOL-DEV-CATALOG -RemoteLib /cygdrive/e/HOL-Library	-LocalSeed E:\Seeds\ -LocalLib E:\HOL-Library -SSHuser catalog -OutputPath E:\LabMaps
+	Sync-vPod-Pull.ps1 -OldName HOL-SDC-1400-v1 -NewName HOL-SDC-1400-v2 -CatalogHost HOL-DEV-CATALOG -RemoteLib /cygdrive/e/HOL-Library	-LocalSeed E:\Seeds\ -LocalLib E:\HOL-Library -SSHuser catalog -OutputPath E:\LabMaps
 
 .CHANGELOG
 	2.0b2 - Added defaults for all parameters but OldName and NewName
 	2.0b4 - Removed extraneous "/" from ovfFileRemoteEsc
-	2.0	 - Check for empty name before rsync
-	2.1	 - Added option to run LFTP in case there is no seed (to use: -OldName = 'NONE')
-
+	2.0   - Check for empty name before rsync
+	2.1   - Added option to run LFTP in case there is no seed (to use: -OldName = 'NONE')
+	2.2   - Added rsync after lftp to ensure file integrity, added -I option to rsync
 #>
 
 [CmdletBinding()]
@@ -196,7 +196,8 @@ PROCESS {
 		} 
 		CleanupAndExit
 	}
-	#New code to handle pods without seeds
+	
+	#Option to handle pods without seeds (fresh copy)
 	If( $OldName -eq 'NONE' ) {
 		$lftpSource = "sftp://$sshUser" + ':xxx@' + $sshComputer + ':' + $RemoteLib + $NewName
 		$lftpCmd = '/usr/bin/lftp -c \"mirror --only-missing --use-pget-n=5 --parallel=5 -p --verbose ' + "$lftpSource $localLibPathC"+'\"'
@@ -204,8 +205,11 @@ PROCESS {
 		$command = "C:\cygwin64\bin\bash.exe --login -c " + "'" + $lftpCmd + "'"
 		If( $createFile ) { $lftpCmd | Out-File $fileName -Append }
 		If( $debug ) { Write-Host -fore Yellow "EXEC-LFTP: $command " } 
-		Invoke-Expression -command $command 
-		} Else {
+		Invoke-Expression -command $command
+		
+		## due to issues with lftp transferring and corrupting files, rsync after to validate integrity
+		$OldName = $NewName
+	} Else {
 		## Utilize specified seed
 		## obtain the new OVF if not already present
 		$newOvfPath = Join-Path $newVPodPath $($NewName + ".ovf")
@@ -367,74 +371,73 @@ PROCESS {
 			}
 		}
 		Write-Host "`n=====>End VMDK Map and Move"
-	
+	}
 	###############################################################################
 	
-		Write-Host "`n=====>Begin file sync:"
-		
-		## When we get here, the SEED files have been matched and renamed to the same 
-		##	names as the matching files and relocated to the local LIBRARY 
-		##	in preparation for the rsync call
+	Write-Host "`n=====>Begin file sync:"
 	
-		# In rsync, the '-a' does weird things with Windows permissions for
-		# non-admin users... use '-tr' instead
-		#	EXAMPLE rsync -tvhPr --stats user@remote:/SOURCE/ /cygdrive/c/LOCAL_TARGET
-		
-		if( $debug ) { 
-			#the -n performs the "dry run" analysis
-			$rsyncOpts = "-tvhPrn --stats --delete --max-delete=3" 
-		} 
-		else { 
-			# BEWARE: this is a "real" rsync .. can delete things!
-			$rsyncOpts = "-tvhPr --stats --delete --max-delete=3" 
+	## When we get here, the SEED files have been matched and renamed to the same 
+	##	names as the matching files and relocated to the local LIBRARY 
+	##	in preparation for the rsync call
+
+	# In rsync, the '-a' does weird things with Windows permissions for
+	# non-admin users... use '-tr' instead
+	#	EXAMPLE rsync -tvhPr --stats user@remote:/SOURCE/ /cygdrive/c/LOCAL_TARGET
+	
+	if( $debug ) { 
+		#the -n performs the "dry run" analysis
+		$rsyncOpts = "-tvhPrIn --stats --delete --max-delete=6" 
+	} 
+	else { 
+		# BEWARE: this is a "real" rsync .. can delete things!
+		$rsyncOpts = "-tvhPrI --stats --delete --max-delete=6" 
+	}
+
+	#rsync needs SSH path to be double-quoted AND double-escaped:
+	#	user@target:"/cygdrive/.../path\\ with\\ spaces"
+	$remotePathRsync = $RemoteLib + $newvAppName
+#	$remotePathRsyncEsc = $remotePathRsync.Replace(" ","\ ")
+	$remotePathRsyncEsc = doubleEscapePathSpaces $remotePathRsync
+
+	#rsync needs local path to be escaped
+	#	/cygdrive/.../path\ with\ spaces/
+	# [05/22/2013-DB .. what about using -s option to rsync? need to test]
+#	$targetPathRsyncEsc = doubleEscapePathSpaces $($TargetPath + $newvAppName)
+	$targetPathRsyncEsc = $($localLibPathC + $newvAppName).Replace(" ","\ ")
+	
+	$syncCmd = "rsync $rsyncOpts " + $SSHuser + "@"	+ $sshComputer + ':"' + $remotePathRsyncEsc + '/" "' + $targetPathRsyncEsc + '"'
+
+	$command = "C:\cygwin64\bin\bash.exe --login -c " + "'" + $syncCmd + "'"
+
+	if( $debug ) { Write-Host "REPLICATE:" $command }
+	if( $createFile ) { $syncCmd | Out-File $fileName -Append }
+	
+	#Pull the ripcord!
+	If ( ($OldName -ne '') -and ($NewName -ne '') ) {
+		Invoke-Expression -command $command 
+	}
+	
+	# Remove old Seed directory (clean up)
+	#	arbitrary value of >5 files remaining to limit exposure of accidental deletion
+
+	if( $OldName -ne "" ) {
+		$oldSeedDir = Get-Item $(Join-Path $LocalSeed $OldName)
+
+		#First, remove the "CHECKSUM" files
+		Get-ChildItem $oldSeedDir -Filter Checksum* | Remove-Item
+
+		$count = 0
+		$oldSeedDir.EnumerateFiles() | % {$count +=1}
+		#there should be none of these besides the Manifest, old OVF, and OVF_BAK files
+		$oldSeedDir.EnumerateDirectories() | % {$count +=10}
+		if( $count -lt 5 ) {
+			Write-Host "Removing SEED directory $($oldSeedDir.FullName)"
+			if( !($debug) ) { Remove-Item $oldSeedDir -Recurse -Confirm:$false }
 		}
-	
-		#rsync needs SSH path to be double-quoted AND double-escaped:
-		#	user@target:"/cygdrive/.../path\\ with\\ spaces"
-		$remotePathRsync = $RemoteLib + $newvAppName
-	#	$remotePathRsyncEsc = $remotePathRsync.Replace(" ","\ ")
-		$remotePathRsyncEsc = doubleEscapePathSpaces $remotePathRsync
-	
-		#rsync needs local path to be escaped
-		#	/cygdrive/.../path\ with\ spaces/
-		# [05/22/2013-DB .. what about using -s option to rsync? need to test]
-	#	$targetPathRsyncEsc = doubleEscapePathSpaces $($TargetPath + $newvAppName)
-		$targetPathRsyncEsc = $($localLibPathC + $newvAppName).Replace(" ","\ ")
-		
-		$syncCmd = "rsync $rsyncOpts " + $SSHuser + "@"	+ $sshComputer + ':"' + $remotePathRsyncEsc + '/" "' + $targetPathRsyncEsc + '"'
-	
-		$command = "C:\cygwin64\bin\bash.exe --login -c " + "'" + $syncCmd + "'"
-	
-		if( $debug ) { Write-Host "REPLICATE:" $command }
-		if( $createFile ) { $syncCmd | Out-File $fileName -Append }
-		
-		#Pull the ripcord!
-		If ( ($OldName -ne '') -and ($NewName -ne '') ) {
-			Invoke-Expression -command $command 
-		}
-		
-		# Remove old Seed directory (clean up)
-		#	arbitrary value of >5 files remaining to limit exposure of accidental deletion
-	
-		if( $OldName -ne "" ) {
-			$oldSeedDir = Get-Item $(Join-Path $LocalSeed $OldName)
-	
-			#First, remove the "CHECKSUM" files
-			Get-ChildItem $oldSeedDir -Filter Checksum* | Remove-Item
-	
-			$count = 0
-			$oldSeedDir.EnumerateFiles() | % {$count +=1}
-			#there should be none of these besides the Manifest, old OVF, and OVF_BAK files
-			$oldSeedDir.EnumerateDirectories() | % {$count +=10}
-			if( $count -lt 4 ) {
-				Write-Host "Removing SEED directory $($oldSeedDir.FullName)"
-				if( !($debug) ) { Remove-Item $oldSeedDir -Recurse -Confirm:$false }
-			}
-			else {
-				$msg = "`nWARNING!! files remaining in SEED directory: $($oldSeedDir.FullName)"
-				Write-Host -Fore Red $msg
-				if( $createFile ) { $msg | Out-File $fileName -Append }
-			}
+		else {
+			$msg = "`nWARNING!! $count files remaining in SEED directory: $($oldSeedDir.FullName)"
+			Write-Host -Fore Red $msg
+			if( $createFile ) { $msg | Out-File $fileName -Append }
 		}
 	}
 }
