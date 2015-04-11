@@ -231,7 +231,9 @@ Write-Progress "Connecting vCenter" 'STARTING'
 # or attempt to connect to each vCenter and restart if no connection by $vcBootMinutes
 # also verifies NGC URL is available and restart if no connection by $ngcBootMinutes
 # only ONE vCenter restart will be attempted then the lab will fail.
-Connect-Restart-vCenter $vCenters
+$maxMins = 0
+Connect-Restart-vCenter $vCenters ([REF]$maxMins)
+$maxMinutesBeforeFail = $maxMins
 
 ##############################################################################
 ##### Lab Startup - STEP #2 (Starting Nested VMs and vApps) 
