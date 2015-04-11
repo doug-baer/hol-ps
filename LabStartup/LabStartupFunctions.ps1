@@ -121,7 +121,7 @@ Function Connect-vCenter ( [array] $vCenters ) {
 	}
 } #End Connect-vCenter
 
-Function Connect-Restart-vCenter ( [array] $vCenters ) {
+Function Connect-Restart-vCenter ( [array]$vCenters, [REF]$maxMins ) {
 	
 	$waitSecs = '30' # seconds to wait for service startup/shutdown
 	$action = 'start'
@@ -138,6 +138,7 @@ Function Connect-Restart-vCenter ( [array] $vCenters ) {
 			LabStartup-Sleep $sleepSeconds
 			$currentRunningSeconds = Get-RuntimeSeconds $VCstartTime
 			$currentRunningMinutes = $currentRunningSeconds / 60
+			If ( $result -eq "success" ) { Continue } # if success continue on to next part.
 			If ( $currentRunningMinutes -gt $vcBootMinutes ) {
 				If ( $VCrestarted -eq $false ) {  # try restarting vCenter to fix the issue
 					Write-Output "Restarting vCenter $vcserver" 
@@ -145,7 +146,7 @@ Function Connect-Restart-vCenter ( [array] $vCenters ) {
 					If ($VCrestarted -eq "success") { 
 						$VCstartTime = $(Get-Date)  # record the reboot for this VC
 						# add more time before fail due to VC reboot
-						$maxMinutesBeforeFail += $vcBootMinutes
+						$maxMinutesBeforeFail = $maxMinutesBeforeFail + $vcBootMinutes
 						# reset the currentRunningMinutes
 						$currentRunningSeconds = Get-RuntimeSeconds $VCstartTime
 						$currentRunningMinutes = $currentRunningSeconds / 60
@@ -190,12 +191,13 @@ Function Connect-Restart-vCenter ( [array] $vCenters ) {
 			Test-URL $url $URLs[$url] ([REF]$result)
 			$currentRunningSeconds = Get-RuntimeSeconds $VCstartTime
 			$currentRunningMinutes = $currentRunningSeconds / 60
+			If ( $result -eq "success" ) { Continue } # if success continue on to next vCenter
 			If( ($currentRunningMinutes -gt $ngcBootMinutes ) -And !($VCrestarted) ) { 
 				# try restarting vCenter to fix the issue
 				Write-Output "Restarting vCenter $vcserver" 
 				Restart-VC $vcserver ([REF]$VCrestarted)
 				If ($VCrestarted -eq "success") { 
-					$maxMinutesBeforeFail += $ngcBootMinutes
+					$maxMinutesBeforeFail = $maxMinutesBeforeFail + $ngcBootMinutes
 					$VCstartTime = $(Get-Date)  # record the reboot for this VC
 					$currentRunningSeconds = Get-RuntimeSeconds $VCstartTime
 					$currentRunningMinutes = $currentRunningSeconds / 60
@@ -209,6 +211,7 @@ Function Connect-Restart-vCenter ( [array] $vCenters ) {
 			LabStartup-Sleep $sleepSeconds
 		} Until ($result -eq "success")
 	}
+	$maxMins.value = $maxMinutesBeforeFail
 } #End Connect-Restart-vCenter
 
 Function Connect-VC ([string]$server, [string]$username, [string]$password, [REF]$result) {
