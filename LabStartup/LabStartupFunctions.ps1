@@ -129,10 +129,10 @@ Function Connect-Restart-vCenter ( [array]$vCenters, [REF]$maxMins ) {
 		$VCrestarted = $false
 		$VCstartTime = $startTime
 		# do a ping test first
-		Test-Ping $vcserver ([REF]$result)
-		If ($result -ne "success" ) {
-			LabFail "Cannot ping vCenter $vcserver.  Failing lab."
-		}
+		Do {
+			LabStartup-Sleep $sleepSeconds
+			Test-Ping $vcserver ([REF]$result)
+		} Until ($result -eq "success" )
 		Do {
 			Connect-VC $vcserver $vcuser $password ([REF]$result)
 			LabStartup-Sleep $sleepSeconds
