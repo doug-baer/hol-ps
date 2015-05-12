@@ -326,6 +326,10 @@ Function Start-Nested ( [array] $records ) {
 				Write-Output "$name power-on task is queued.  Moving on..."
 				Break
 			}
+			If ($task.State -eq "Running" ) {
+				Write-Output "$name power-on task is running.  Moving on..."
+				Break
+			}
 			Write-Output $("Current {0} {1} power state: {2}" -f $type, $name, $powerState )
 			Write-Output $("Current task Id {0} task state: {1}" -f $task.Id, $task.State )
 		}
