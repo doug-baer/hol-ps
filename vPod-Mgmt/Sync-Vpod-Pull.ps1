@@ -2,8 +2,8 @@
 .NOTES
 	Name:			Sync-VPod-Pull
 	Author:		Doug Baer
-	Version:	2.2
-	Date:			2015-04-03
+	Version:	2.3.1
+	Date:			2015-05-20
 
 .SYNOPSIS
 	Efficiently synchronize two OVF exports between sites using specified local data as the seed.
@@ -55,6 +55,7 @@
 	2.0   - Check for empty name before rsync
 	2.1   - Added option to run LFTP in case there is no seed (to use: -OldName = 'NONE')
 	2.2   - Added rsync after lftp to ensure file integrity, added -I option to rsync
+	2.3   - Updated rsync after lftp: lftp goes to SEEDS directory, rsync puts it into LIBRARY
 #>
 
 [CmdletBinding()]
@@ -146,7 +147,7 @@ BEGIN {
 
 	# Do any cleanup we need to do before bailing
 	function CleanupAndExit {
-		if( $debug ) { Write-Host "CleanupAndExit" }		
+		Write-Host "CleanupAndExit"
 		Exit
 	}
 
@@ -197,10 +198,10 @@ PROCESS {
 		CleanupAndExit
 	}
 	
-	#Option to handle pods without seeds (fresh copy)
+	#Option to handle pods without seeds (fresh copy) to "seeds" directory
 	If( $OldName -eq 'NONE' ) {
 		$lftpSource = "sftp://$sshUser" + ':xxx@' + $sshComputer + ':' + $RemoteLib + $NewName
-		$lftpCmd = '/usr/bin/lftp -c \"mirror --only-missing --use-pget-n=5 --parallel=5 -p --verbose ' + "$lftpSource $localLibPathC"+'\"'
+		$lftpCmd = '/usr/bin/lftp -c \"mirror --only-missing --use-pget-n=5 --parallel=5 -p --verbose ' + "$lftpSource $localSeedPathC"+'\"'
 		#run the LFTP in cygwin
 		$command = "C:\cygwin64\bin\bash.exe --login -c " + "'" + $lftpCmd + "'"
 		If( $createFile ) { $lftpCmd | Out-File $fileName -Append }
@@ -209,169 +210,173 @@ PROCESS {
 		
 		## due to issues with lftp transferring and corrupting files, rsync after to validate integrity
 		$OldName = $NewName
-	} Else {
-		## Utilize specified seed
-		## obtain the new OVF if not already present
-		$newOvfPath = Join-Path $newVPodPath $($NewName + ".ovf")
-		
-		If( -not (Test-Path $newOvfPath) ) {
-			# sanity check: we just created this directory, so OVF should not be here
-			## GO GET IT VIA SSH -- EVEN IN DEBUG MODE
-			$ovfFileRemoteEsc = doubleEscapePathSpaces $($RemoteLib + $NewName + "/" + $NewName + ".ovf")
-			$newOvfPathC = cygwinPath $newOvfPath
-			$command = "C:\cygwin64\bin\bash.exe --login -c 'scp "+ $sshOptions + $SSHuser + "@" + $sshComputer + ':"' + $ovfFileRemoteEsc + '" "' + $newOvfPathC +'"' +"'"
+	}
+
+	#at this point, there is something to use as a seed, so utilize specified seed
+	## obtain the new OVF if not already present
+	$newOvfPath = Join-Path $newVPodPath $($NewName + ".ovf")
 	
-			if( $debug ) { Write-Host $command }
-			if( $createFile ) { $command | Out-File $fileName -append } 
+	If( -not (Test-Path $newOvfPath) ) {
+		# sanity check: we just created this directory, so OVF should not be here
+		## GO GET IT VIA SSH -- EVEN IN DEBUG MODE
+		$ovfFileRemoteEsc = doubleEscapePathSpaces $($RemoteLib + $NewName + "/" + $NewName + ".ovf")
+		$newOvfPathC = cygwinPath $newOvfPath
+		$command = "C:\cygwin64\bin\bash.exe --login -c 'scp "+ $sshOptions + $SSHuser + "@" + $sshComputer + ':"' + $ovfFileRemoteEsc + '" "' + $newOvfPathC +'"' +"'"
+
+		if( $debug ) { Write-Host $command }
+		if( $createFile ) { $command | Out-File $fileName -append } 
+
+		Write-Host "Getting new OVF via SCP..."
+		Invoke-Expression -command $command 
+	}
+
+	## second check -- see if we successfully downloaded it
+	if( -not (Test-Path $newOvfPath) ) {
+		Write-Host -Fore Red "Error: Unable to read new OVF @ $newOvfPath"
+		CleanupAndExit
+	}
+ 
+	#here, we have a copy of the new OVF in the new location
+	[xml]$new = Get-Content $newOvfPath
+	$newfiles = $new.Envelope.References.File
+	$newvAppName = $new.Envelope.VirtualSystemCollection.Name 
+
+	#Map the filenames to the OVF IDs in a hash table by diskID within the OVF
+	$newVmdks = @{}
+	foreach ($disk in $new.Envelope.References.File) {
+		$diskID = ($disk.ID).Remove(0,5)
+		$newVmdks.Add($diskID,$disk.href)
+	}
 	
-			Write-Host "Getting new OVF via SCP..."
-			Invoke-Expression -command $command 
+	#### Read the SEED OVF
+	$oldOvfPath = Join-Path $LocalSeed $(Join-Path $OldName $($OldName + ".ovf"))
+
+	#ensure the file exists... 
+	if( -not (Test-Path $oldOvfPath) ) {
+		Write-Host -Fore Red "Error: unable to read seed OVF"
+		CleanupAndExit
+	}
+	
+	[xml]$old = Get-Content $oldOvfPath
+	$oldfiles = $old.Envelope.References.File
+	
+	# For scripting, it is better to use the provided name than the "real" name from within
+	#$oldvAppName = $old.Envelope.VirtualSystemCollection.Name
+	$oldvAppName = $OldName
+	
+	#Map the VMDK file names to the OVF IDs in a hash table by diskID within the OVF
+	$oldVmdks = @{}
+	foreach ($disk in $old.Envelope.References.File) {
+		$diskID = ($disk.ID).Remove(0,5)
+		$oldVmdks.Add($diskID,$disk.href)
+	}
+	
+	## Match the OLD VMs and their files (uses $oldVmdks to resolve)
+	$oldVms = @()
+	$oldVms = $old.Envelope.VirtualSystemCollection.VirtualSystem
+	$oldDiskMap = @{}
+	
+	foreach ($vm in $oldVms) {
+		#special case for vPOD router VM -- it has a version number and blows up when renamed
+		if( $vm.name -like "vpodrouter*" ) {
+			$oldDiskMap.Add("vpodrouter",@{})
+		} else {
+			$oldDiskMap.Add($vm.name,@{})
 		}
-	
-		## second check -- see if we successfully downloaded it
-		if( -not (Test-Path $newOvfPath) ) {
-			Write-Host -Fore Red "Error: Unable to read new OVF @ $newOvfPath"
-			CleanupAndExit
-		}
-	 
-		#here, we have a copy of the new OVF in the new location
-		[xml]$new = Get-Content $newOvfPath
-		$newfiles = $new.Envelope.References.File
-		$newvAppName = $new.Envelope.VirtualSystemCollection.Name 
-	
-		#Map the filenames to the OVF IDs in a hash table by diskID within the OVF
-		$newVmdks = @{}
-		foreach ($disk in $new.Envelope.References.File) {
-			$diskID = ($disk.ID).Remove(0,5)
-			$newVmdks.Add($diskID,$disk.href)
-		}
-		
-		#### Read the SEED OVF
-		$oldOvfPath = Join-Path $LocalSeed $(Join-Path $OldName $($OldName + ".ovf"))
-	
-		#ensure the file exists... 
-		if( -not (Test-Path $oldOvfPath) ) {
-			Write-Host -Fore Red "Error: unable to read seed OVF"
-			CleanupAndExit
-		}
-		
-		[xml]$old = Get-Content $oldOvfPath
-		$oldfiles = $old.Envelope.References.File
-		$oldvAppName = $old.Envelope.VirtualSystemCollection.Name
-	
-		#Map the VMDK file names to the OVF IDs in a hash table by diskID within the OVF
-		$oldVmdks = @{}
-		foreach ($disk in $old.Envelope.References.File) {
-			$diskID = ($disk.ID).Remove(0,5)
-			$oldVmdks.Add($diskID,$disk.href)
-		}
-		
-		## Match the OLD VMs and their files (uses $oldVmdks to resolve)
-		$oldVms = @()
-		$oldVms = $old.Envelope.VirtualSystemCollection.VirtualSystem
-		$oldDiskMap = @{}
-		
-		foreach ($vm in $oldVms) {
-			#special case for vPOD router VM -- it has a version number and blows up when renamed
-			if( $vm.name -like "vpodrouter*" ) {
-				$oldDiskMap.Add("vpodrouter",@{})
-			} else {
-				$oldDiskMap.Add($vm.name,@{})
-			}
-	
-			$disks = ($vm.VirtualHardwareSection.Item | Where {$_.description -like "Hard disk*"} | Sort -Property AddressOnParent)
-			$i = 0
-			foreach ($disk in $disks) {
-				$parentDisks = @($Disks)
-				$diskName = $parentDisks[$i].ElementName
-				$i++
-				$ref = ($disk.HostResource."#text")
-				$ref = $ref.Remove(0,$ref.IndexOf("-") + 1)
-				if ($vm.name -like "vpodrouter*") {
-					($oldDiskMap["vpodrouter"]).Add($diskName,$oldVmdks[$ref])
-				} 
-				else {
-					($oldDiskMap[$vm.name]).Add($diskName,$oldVmdks[$ref])
-				}
-			}
-		}
-		
-		## Match the NEW VMs and their files (uses $oldVmdks to resolve)
-		$newVms = @()
-		$newVms = $new.Envelope.VirtualSystemCollection.VirtualSystem
-		$newDiskMap = @{}
-		
-		foreach ($vm in $newVms) {
-			#special case for vPOD router VM -- it gets a version number
-			if( $vm.name -like "vpodrouter*" ) {
-				$newDiskMap.Add("vpodrouter",@{})
+
+		$disks = ($vm.VirtualHardwareSection.Item | Where {$_.description -like "Hard disk*"} | Sort -Property AddressOnParent)
+		$i = 0
+		foreach ($disk in $disks) {
+			$parentDisks = @($Disks)
+			$diskName = $parentDisks[$i].ElementName
+			$i++
+			$ref = ($disk.HostResource."#text")
+			$ref = $ref.Remove(0,$ref.IndexOf("-") + 1)
+			if ($vm.name -like "vpodrouter*") {
+				($oldDiskMap["vpodrouter"]).Add($diskName,$oldVmdks[$ref])
 			} 
 			else {
-				$newDiskMap.Add($vm.name,@{})
-			}
-	
-			$disks = ($vm.VirtualHardwareSection.Item | Where {$_.description -like "Hard disk*"} | Sort -Property AddressOnParent)
-			$i = 0
-			foreach ($disk in $disks) {
-				$parentDisks = @($Disks)
-				$diskName = $parentDisks[$i].ElementName
-				$i++
-				$ref = ($disk.HostResource."#text") #Powershell or OVF version dependent?
-				$ref = $ref.Remove(0,$ref.IndexOf("-") + 1)
-				if ($vm.name -like "vpodrouter*") {
-					($newDiskMap["vpodrouter"]).Add($diskName,$newVmdks[$ref])
-				} 
-				else {
-					($newDiskMap[$vm.name]).Add($diskName,$newVmdks[$ref])
-				}
+				($oldDiskMap[$vm.name]).Add($diskName,$oldVmdks[$ref])
 			}
 		}
-	
-	###############################################################################
-	
-		# Walk through the NEW disk map, create a hash table of the file mappings 
-		#	keys are FROM filenames and values are TO filenames
-		Write-Host "`n=====>Begin VMDK Map and Move"
-		foreach ($key in $newDiskMap.Keys) {
-			#look up the NEW host (by name) in $oldDiskMap 
-			foreach ($key2 in ($newDiskMap[$key]).Keys) { 
-				#enumerate the disks per VM :"Hard disk #"
-				#ensure ($oldDiskMap[$key])[$key2] exists prior to continuing
-				$oldFileExists = $false
-				if( $oldDiskMap.ContainsKey($key) ) {
-					if( ($oldDiskMap[$key]).ContainsKey($key2) ) {
-						$str1 = "	OLD " + $key2 + "->" + ($oldDiskMap[$key])[$key2]
-						$oldFileExists = $true
-					} 
-					else {
-						$str1 = "	NO MATCH for $key2 @ $key : new disk on VM"			
-					}
-				} 
-				else {
-					$str1 = "	NO MATCH for $key : net new VM"
-				}
-				$str2 = "	NEW " + $key2 + "->" + ($newDiskMap[$key])[$key2]
-				Write "`n==> HOST: $key"
-				Write $str1
-				Write $str2
-				#Rename the target files (seeds) to match the source's
-				# SPACES _SUCK_
-				#ssh needs whole command double-quoted and path-spaces double-escaped:
-				#	ssh user@target "mv /cygdrive/.../path\\ with\\ spaces /cygdrive/.../path\\ with\\ more\\ spaces"
-	
-				$newPathEsc = doubleEscapePathSpaces $($localLibPathC + $newvAppName + "/" + ($newDiskMap[$key])[$key2])
-				if( $oldFileExists ) {
-					$oldPathEsc = doubleEscapePathSpaces $($localSeedPathC + $oldvAppName + "/" + ($oldDiskMap[$key])[$key2])
-					$command = "C:\cygwin64\bin\bash.exe --login -c 'mv " + $oldPathEsc + " " + $newPathEsc + "'"
-					Write-Host -Fore Yellow "	MOVE VMDK FILE: $command"
-					if( $createFile ) { $command | Out-File $fileName -Append }
-					if ( !($debug) ) { Invoke-Expression -command $command }
-					$command = $null
-				}
-			}
-		}
-		Write-Host "`n=====>End VMDK Map and Move"
 	}
+	
+	## Match the NEW VMs and their files (uses $oldVmdks to resolve)
+	$newVms = @()
+	$newVms = $new.Envelope.VirtualSystemCollection.VirtualSystem
+	$newDiskMap = @{}
+	
+	foreach ($vm in $newVms) {
+		#special case for vPOD router VM -- it gets a version number
+		if( $vm.name -like "vpodrouter*" ) {
+			$newDiskMap.Add("vpodrouter",@{})
+		} 
+		else {
+			$newDiskMap.Add($vm.name,@{})
+		}
+
+		$disks = ($vm.VirtualHardwareSection.Item | Where {$_.description -like "Hard disk*"} | Sort -Property AddressOnParent)
+		$i = 0
+		foreach ($disk in $disks) {
+			$parentDisks = @($Disks)
+			$diskName = $parentDisks[$i].ElementName
+			$i++
+			$ref = ($disk.HostResource."#text") #Powershell or OVF version dependent?
+			$ref = $ref.Remove(0,$ref.IndexOf("-") + 1)
+			if ($vm.name -like "vpodrouter*") {
+				($newDiskMap["vpodrouter"]).Add($diskName,$newVmdks[$ref])
+			} 
+			else {
+				($newDiskMap[$vm.name]).Add($diskName,$newVmdks[$ref])
+			}
+		}
+	}
+
+###############################################################################
+
+	# Walk through the NEW disk map, create a hash table of the file mappings 
+	#	keys are FROM filenames and values are TO filenames
+	Write-Host "`n=====>Begin VMDK Map and Move"
+	foreach ($key in $newDiskMap.Keys) {
+		#look up the NEW host (by name) in $oldDiskMap 
+		foreach ($key2 in ($newDiskMap[$key]).Keys) { 
+			#enumerate the disks per VM :"Hard disk #"
+			#ensure ($oldDiskMap[$key])[$key2] exists prior to continuing
+			$oldFileExists = $false
+			if( $oldDiskMap.ContainsKey($key) ) {
+				if( ($oldDiskMap[$key]).ContainsKey($key2) ) {
+					$str1 = "	OLD " + $key2 + "->" + ($oldDiskMap[$key])[$key2]
+					$oldFileExists = $true
+				} 
+				else {
+					$str1 = "	NO MATCH for $key2 @ $key : new disk on VM"			
+				}
+			} 
+			else {
+				$str1 = "	NO MATCH for $key : net new VM"
+			}
+			$str2 = "	NEW " + $key2 + "->" + ($newDiskMap[$key])[$key2]
+			Write "`n==> HOST: $key"
+			Write $str1
+			Write $str2
+			#Rename the target files (seeds) to match the source's
+			# SPACES _SUCK_
+			#ssh needs whole command double-quoted and path-spaces double-escaped:
+			#	ssh user@target "mv /cygdrive/.../path\\ with\\ spaces /cygdrive/.../path\\ with\\ more\\ spaces"
+
+			$newPathEsc = doubleEscapePathSpaces $($localLibPathC + $newvAppName + "/" + ($newDiskMap[$key])[$key2])
+			if( $oldFileExists ) {
+				$oldPathEsc = doubleEscapePathSpaces $($localSeedPathC + $oldvAppName + "/" + ($oldDiskMap[$key])[$key2])
+				$command = "C:\cygwin64\bin\bash.exe --login -c 'mv " + $oldPathEsc + " " + $newPathEsc + "'"
+				Write-Host -Fore Yellow "	MOVE VMDK FILE: $command"
+				if( $createFile ) { $command | Out-File $fileName -Append }
+				if ( !($debug) ) { Invoke-Expression -command $command }
+				$command = $null
+			}
+		}
+	}
+	Write-Host "`n=====>End VMDK Map and Move"
+
 	###############################################################################
 	
 	Write-Host "`n=====>Begin file sync:"
