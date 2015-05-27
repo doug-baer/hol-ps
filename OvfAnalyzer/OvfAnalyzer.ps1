@@ -2,7 +2,7 @@
 .NOTES
 	Name:			OvfAnalyzer.ps1
 	Author:		Doug Baer
-	Version:	1.0
+	Version:	1.1
 	Date:			2015-05-27
 
 .SYNOPSIS
@@ -34,6 +34,8 @@ param(
 	[Parameter(Position=0,Mandatory=$true,HelpMessage="Path to the Content Library",
 	ValueFromPipeline=$False)]
 	[System.String]$ContentLibrary,
+	
+	[Switch]$ExpandVMs,
 
 	[Parameter(Position=1,Mandatory=$false,HelpMessage="Path to the output file (CSV)",
 	ValueFromPipeline=$False,ValueFromPipelineByPropertyName=$False)]
@@ -60,6 +62,7 @@ BEGIN {
 PROCESS {
 	
 	$report = @()
+	$reportVMs = @()
 	
 	$libraryOvfs = @()
 	Get-ChildItem $ContentLibrary -recurse -include '*.ovf' | % { $libraryOvfs += $_.FullName }
@@ -71,32 +74,34 @@ PROCESS {
 		$currentOvf += 1
 		Write-Host "Working on $currentOvf of $totalOvfs"
 
-		[xml]$old = Get-Content $TheOvf
+		[xml]$ovf = Get-Content $theOvf
 		$totalVms = 0
 		$totalVcpu = 0
 		$totalGbRam = 0
 		$totalGbDisk = 0
 		
-		$row = "" | Select SKU, NumVM, NumCPU, GbRAM, GbDisk
-		$row.SKU = $old.Envelope.VirtualSystemCollection.Name
-		
+		$currentVpod = "" | Select SKU, NumVM, NumCPU, GbRAM, GbDisk
+		$currentVpod.SKU = $ovf.Envelope.VirtualSystemCollection.Name
+				
 		#Map the VMDK file names to the OVF IDs in a hash table by diskID within the OVF
-		$oldVmdks = @{}
-		foreach ($disk in $old.Envelope.References.File) {
+		$vpodVmdks = @{}
+		foreach ($disk in $ovf.Envelope.References.File) {
 			$diskID = ($disk.ID).Remove(0,5)
-			$oldVmdks.Add($diskID,$disk.href)
+			$vpodVmdks.Add($diskID,$disk.href)
 		}
 		
-		## Match the OLD VMs and their files (uses $oldVmdks to resolve)
-		$oldVms = @()
-		$oldVms = $old.Envelope.VirtualSystemCollection.VirtualSystem
-		$oldDiskMap = @{}
+		$vpodVms = @()
+		$vpodVms = $ovf.Envelope.VirtualSystemCollection.VirtualSystem
 		
-		foreach ($vm in $oldVms) {
+		foreach ($vm in $vpodVms) {
 			$totalVms += 1
+			$currentVM = "" | Select SKU, Name, NumCPU, GbRAM, GbDisk
+			$currentVM.SKU = $ovf.Envelope.VirtualSystemCollection.Name
+			$currentVM.Name = $vm.Name
 			
 			$numVcpu = ($vm.VirtualHardwareSection.Item | Where {$_.description -like 'Number of Virtual CPUs'}).VirtualQuantity
 			$totalVcpu += $numVcpu
+			$currentVM.NumCPU = $numVcpu
 			
 			$ramSize = ($vm.VirtualHardwareSection.Item | Where {$_.description -like 'Memory Size'})
 			switch ($ramSize.AllocationUnits) {
@@ -105,6 +110,7 @@ PROCESS {
 				default			 { $GbRam = 999999 }
 			}
 			$totalGbRam += $GbRam
+			$currentVM.GbRAM = $GbRam
 	
 			$disks = ($vm.VirtualHardwareSection.Item | Where {$_.description -like "Hard disk*"} | Sort -Property AddressOnParent)
 			$i = 0
@@ -114,30 +120,40 @@ PROCESS {
 				$i++
 				$ref = ($disk.HostResource."#text")
 				$ref = $ref.Remove(0,$ref.IndexOf("-") + 1)
-				$thisDisk = $old.Envelope.DiskSection.disk | where { $_.diskId -match $ref }
+				$thisDisk = $ovf.Envelope.DiskSection.disk | where { $_.diskId -match $ref }
 				switch ($thisDisk.capacityAllocationUnits) {
 					'byte * 2^20' { $GbDisk ="{0:N2}" -f ([int]($thisDisk.capacity) / 1024) }
 					'byte * 2^30' { $GbDisk = [int]($thisDisk.capacity) }
 					default				{ $diskSize = 99999999 } 
 				}
 				$totalGbDisk += $GbDisk
+				$currentVM.GbDisk = $GbDisk
 			}
+			$reportVMs += $currentVM
 		}
 	
-		$row.NumVM = $totalVms
-		$row.NumCPU = $totalVcpu
-		$row.GbRAM = $totalGbRam
-		$row.GbDisk = $totalGbDisk
+		$currentVpod.NumVM = $totalVms
+		$currentVpod.NumCPU = $totalVcpu
+		$currentVpod.GbRAM = $totalGbRam
+		$currentVpod.GbDisk = $totalGbDisk
 
-		$report += $row
+		$report += $currentVpod
 	}
 
-	If ($outfilePath){
-		$report | Export-Csv -UseCulture $OutfilePath
+	If ($outfilePath) {
+		If( $ExpandVMs ) { 
+			$reportVMs | Export-Csv -UseCulture $OutfilePath 
+		} Else {
+			$report | Export-Csv -UseCulture $OutfilePath
+		}
 	} Else {
-		$report | Format-Table -Autosize
+		If( $ExpandVMs ) { 
+			$reportVMs | Sort -Property SKU | Format-Table -Autosize
+		} Else {
+			$report | Sort -Property SKU | Format-Table -Autosize
+		}
 	}
-
+	
 }
 
 ###############################################################################
