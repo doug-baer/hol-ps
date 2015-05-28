@@ -1,39 +1,56 @@
 <#
 .NOTES
-	Name:			OvfAnalyzer.ps1
-	Author:		Doug Baer
-	Version:	1.1
-	Date:			2015-05-27
+	Name:    OvfAnalyzer.ps1
+	Author:  Doug Baer
+	Version: 1.1.1
+	Date:	   2015-05-28
 
 .SYNOPSIS
-	parse OVF file and extract sizing information for HOL.
+	Parse OVF files and extract sizing information for HOL vPod analysis
 
 .DESCRIPTION
-	Obtain the following summary information per OVF
-		Lab SKU
-		Number of VMs
-		Number of vCPUs
-		Amount of RAM (GB)
-		Amount of Disk (GB)
-	
+	Obtain summary information per OVF:
+		* vPod SKU (vApp name in OVF)
+		* Count of VMs in the vApp
+		* Total number of vCPUs requested
+		* Total amount of RAM (GB) requested
+		* Total amount of Disk (GB) requested
+
+	Optionally report the same information per VM
 
 .PARAMETER
-	-Library
+	Library - (required) Windows path to folder containing OVF(s). Script will traverse the tree looking for files with .OVF extension.
 	
-.EXAMPLE - using defaults
-	OvfAnalyzer.ps1 -Library C:\OVF-Collection
+.PARAMETER
+	OutfilePath - (optional) Windows path to the CSV-formatted output file
+	
+.PARAMETER
+	ExpandVMs - (optional) switch to indicate whether summary (default) or per-VM data is reported
+	
+.EXAMPLE
+	OvfAnalyzer.ps1 -Library C:\OVFs
 
+.EXAMPLE
+	OvfAnalyzer.ps1 -Library C:\OVFs -ExpandVMs
+
+.EXAMPLE
+	OvfAnalyzer.ps1 -Library C:\OVFs -OutfilePath C:\temp\OVFs-Report.csv
+
+.EXAMPLE
+	OvfAnalyzer.ps1 -Library C:\OVFs -OutfilePath C:\temp\OVFs-DetailReport.csv -ExpandVMs
 
 .CHANGELOG
-	Concept
+	1.0   - Initial concept
+	1.1   - Revised and cleaned up variables, added -ExpandVMs option
+	1.1.1 - Added documentation, renamed ContentLibrary parameter to Library, cleaned up code.
 
 #>
 
 [CmdletBinding()]
 param(
-	[Parameter(Position=0,Mandatory=$true,HelpMessage="Path to the Content Library",
+	[Parameter(Position=0,Mandatory=$true,HelpMessage="Path to the OVF Library",
 	ValueFromPipeline=$False)]
-	[System.String]$ContentLibrary,
+	[System.String]$Library,
 	
 	[Switch]$ExpandVMs,
 
@@ -47,15 +64,15 @@ param(
 BEGIN {
 	
 	try { 
-		if( -not (Test-Path $ContentLibrary) ) {
-			Write-Host -Fore Red "Exiting: unable to find $ContentLibrary"
+		if( -not (Test-Path $Library) ) {
+			Write-Host -Fore Red "Exiting: unable to find $Library"
 			Exit
 		}
 	}
 	catch {
 		#
 	}
-
+	Write-Host -fore Green "`n=*=*=*=*=* OvfAnalyzer Begin $(Get-Date) *=*=*=*=*="
 }
 
 ###############################################################################
@@ -65,35 +82,28 @@ PROCESS {
 	$reportVMs = @()
 	
 	$libraryOvfs = @()
-	Get-ChildItem $ContentLibrary -recurse -include '*.ovf' | % { $libraryOvfs += $_.FullName }
+	Get-ChildItem $Library -recurse -include '*.ovf' | % { $libraryOvfs += $_.FullName }
 
 	$totalOvfs = ($libraryOvfs | Measure-Object).Count
 	$currentOvf = 0
 
-	foreach ($theOvf in $libraryOvfs ) {
+	Foreach( $theOvf in $libraryOvfs ) {
 		$currentOvf += 1
 		Write-Host "Working on $currentOvf of $totalOvfs"
 
 		[xml]$ovf = Get-Content $theOvf
-		$totalVms = 0
-		$totalVcpu = 0
-		$totalGbRam = 0
+		$totalVms    = 0
+		$totalVcpu   = 0
+		$totalGbRam  = 0
 		$totalGbDisk = 0
 		
 		$currentVpod = "" | Select SKU, NumVM, NumCPU, GbRAM, GbDisk
 		$currentVpod.SKU = $ovf.Envelope.VirtualSystemCollection.Name
-				
-		#Map the VMDK file names to the OVF IDs in a hash table by diskID within the OVF
-		$vpodVmdks = @{}
-		foreach ($disk in $ovf.Envelope.References.File) {
-			$diskID = ($disk.ID).Remove(0,5)
-			$vpodVmdks.Add($diskID,$disk.href)
-		}
-		
+			
 		$vpodVms = @()
 		$vpodVms = $ovf.Envelope.VirtualSystemCollection.VirtualSystem
 		
-		foreach ($vm in $vpodVms) {
+		Foreach( $vm in $vpodVms ) {
 			$totalVms += 1
 			$currentVM = "" | Select SKU, Name, NumCPU, GbRAM, GbDisk
 			$currentVM.SKU = $ovf.Envelope.VirtualSystemCollection.Name
@@ -104,37 +114,43 @@ PROCESS {
 			$currentVM.NumCPU = $numVcpu
 			
 			$ramSize = ($vm.VirtualHardwareSection.Item | Where {$_.description -like 'Memory Size'})
-			switch ($ramSize.AllocationUnits) {
+			
+			Switch( $ramSize.AllocationUnits ) {
 				'byte * 2^20' { $GbRam = [int]($RamSize.VirtualQuantity) / 1024 }
 				'byte * 2^30' { $GbRam = [int]($RamSize.VirtualQuantity) }
-				default			 { $GbRam = 999999 }
+				'byte * 2^40' { $GbRam = 1024 * [int]($RamSize.VirtualQuantity) }
+				default       { $GbRam = 999999 }
 			}
+			
 			$totalGbRam += $GbRam
 			$currentVM.GbRAM = $GbRam
 	
 			$disks = ($vm.VirtualHardwareSection.Item | Where {$_.description -like "Hard disk*"} | Sort -Property AddressOnParent)
 			$i = 0
-			foreach ($disk in $disks) {
+			Foreach( $disk in $disks ) {
 				$parentDisks = @($Disks)
 				$diskName = $parentDisks[$i].ElementName
 				$i++
 				$ref = ($disk.HostResource."#text")
 				$ref = $ref.Remove(0,$ref.IndexOf("-") + 1)
 				$thisDisk = $ovf.Envelope.DiskSection.disk | where { $_.diskId -match $ref }
-				switch ($thisDisk.capacityAllocationUnits) {
+				
+				Switch( $thisDisk.capacityAllocationUnits ) {
 					'byte * 2^20' { $GbDisk ="{0:N2}" -f ([int]($thisDisk.capacity) / 1024) }
 					'byte * 2^30' { $GbDisk = [int]($thisDisk.capacity) }
-					default				{ $diskSize = 99999999 } 
+					'byte * 2^40' { $GbDisk = 1024 * [int]($thisDisk.capacity) }
+					default       { $diskSize = 99999999 } 
 				}
+				
 				$totalGbDisk += $GbDisk
 				$currentVM.GbDisk = $GbDisk
 			}
 			$reportVMs += $currentVM
 		}
 	
-		$currentVpod.NumVM = $totalVms
+		$currentVpod.NumVM  = $totalVms
 		$currentVpod.NumCPU = $totalVcpu
-		$currentVpod.GbRAM = $totalGbRam
+		$currentVpod.GbRAM  = $totalGbRam
 		$currentVpod.GbDisk = $totalGbDisk
 
 		$report += $currentVpod
@@ -159,5 +175,5 @@ PROCESS {
 ###############################################################################
 
 END {
-	#Write-Host -fore Green "`n=*=*=*=*=* OvfAnalyzer $TheOvf End $(Get-Date) *=*=*=*=*="
+	Write-Host -fore Green "`n=*=*=*=*=* OvfAnalyzer Finished $(Get-Date) *=*=*=*=*="
 }
