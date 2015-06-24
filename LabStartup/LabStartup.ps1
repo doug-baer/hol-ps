@@ -75,6 +75,9 @@ $maxMinutesBeforeFail = 30
 $desktopInfo = 'C:\DesktopInfo\desktopinfo.ini'
 # path to Plink.exe -- for status & managing Linux
 $plinkPath = 'C:\hol\Tools\plink.exe'
+# path to pscp.exe -- for transferring files to Linux
+# you must place pscp.exe in this path in order to use the Invoke-Pscp function
+$pscpPath = 'C:\hol\Tools\pscp.exe'
 #must be defined in order to pass as reference for looping
 $result = ''
 
@@ -349,6 +352,21 @@ Do {
 		Start-Sleep 5
 	} Until ($result -eq "success")
 
+#>
+
+# example copy a file to or from Linux machine using pscp.exe
+# you must have pscp.exe in the location specified by $pscpPath
+# Note this example is commented out!
+<#
+# use the pscp conventions for source and destination files
+# remote to remote is not allowed
+# source must be a regular file and not a folder
+# destination can be a folder
+$source = 'full-sles-01a.corp.local:/tmp/linuxfile.log'
+$dest = 'C:\hol\linuxfile.log'
+Write-Output "Copying $source to $dest..."
+$msg = Invoke-Pscp -login $linuxUser -passwd $linuxPassword -sourceFile $source -destFile $dest
+Write-Output $msg
 #>
 
 #Write-Progress "Finished Additional Tests" 'GOOD-5'

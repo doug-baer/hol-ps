@@ -56,6 +56,15 @@ Function Invoke-PlinkKey ([string]$puttySession, [string]$command) {
 	Invoke-Expression "Echo Y | $plinkPath -ssh -load $puttySession $command"
 } #End Invoke-PlinkKey
 
+Function Invoke-Pscp ([string]$login, [string]$passwd, [string]$sourceFile, [string]$destFile) {
+<#
+	This function executes the specified command on the remote host via SSH
+#>
+   
+	Invoke-Expression "$pscpPath -l $login -pw $passwd $sourceFile $destFile"
+ 
+} #End Invoke-Pscp
+
 Function RunWinCmd ([string]$wcmd, [REF]$result) {
 <#
   Execute a Windows command on the local machine with some degree of error checking
