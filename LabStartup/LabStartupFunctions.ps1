@@ -58,7 +58,10 @@ Function Invoke-PlinkKey ([string]$puttySession, [string]$command) {
 
 Function Invoke-Pscp ([string]$login, [string]$passwd, [string]$sourceFile, [string]$destFile) {
 <#
-	This function executes the specified command on the remote host via SSH
+	This function uses pscp.exe to copy a file from or to a remote destination.
+	The source and destination conventions of pscp.exe must be followed.
+	Remote to remote is not allowed.
+	The source file must be a regular file.
 #>
    
 	Invoke-Expression "$pscpPath -l $login -pw $passwd $sourceFile $destFile"
