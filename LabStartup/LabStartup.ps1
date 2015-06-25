@@ -258,10 +258,8 @@ Foreach ($vcserver in $vCenters) {
 }
 
 ##############################################################################
-##### Lab Startup - STEP #3 (Testing Pings & Ports) 
+##### Lab Startup - STEP #3 (Start/Restart/Stop/Query Services) 
 ##############################################################################
-
-Write-Progress "Testing TCP ports" 'GOOD-3'
 
 # Testing Pings
 Foreach ($ping in $Pings) {
@@ -271,20 +269,7 @@ Foreach ($ping in $Pings) {
 	} Until ($result -eq "success")
 }
 
-#Testing services are answering on TCP ports 
-Foreach ($service in $TCPservices) {
-	($server,$port) = $service.Split(":")
-	Do { 
-		Test-TcpPortOpen $server $port ([REF]$result)
-		LabStartup-Sleep $sleepSeconds
-	} Until ($result -eq "success")
-}
-
-##############################################################################
-##### Lab Startup - STEP #4 (Start/Restart/Stop/Query Services) 
-##############################################################################
-
-Write-Progress "Manage Win Svcs" 'GOOD-4'
+Write-Progress "Manage Win Svcs" 'GOOD-3'
 
 # options are "start", "restart", "stop" or "query"
 $action = "start"
@@ -320,6 +305,22 @@ Foreach ($service in $linuxServices) {
 
 Write-Output "$(Get-Date) Finished $action Linux services"
 
+##############################################################################
+##### Lab Startup - STEP #4 (Testing Ports) 
+##############################################################################
+
+Write-Progress "Testing TCP ports" 'GOOD-4'
+
+#Testing services are answering on TCP ports 
+Foreach ($service in $TCPservices) {
+	($server,$port) = $service.Split(":")
+	Do { 
+		Test-TcpPortOpen $server $port ([REF]$result)
+		LabStartup-Sleep $sleepSeconds
+	} Until ($result -eq "success")
+}
+
+Write-Output "$(Get-Date) Finished testing TCP ports"
 
 ##############################################################################
 ##### Lab Startup - STEP #5 (Testing URLs) 
