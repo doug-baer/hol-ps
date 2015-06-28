@@ -247,7 +247,7 @@ Function Restart-VC ([string]$server, [REF]$result){
 	If ($server.Contains("vcsa") ) {
 		# vSphere 6 appliance is most likely
 		Write-Host "Trying appliance vCenter 6 reboot..."
-		$lcmd = "shutdown reboot -r now 2>&1"
+		$lcmd = "shutdown -r now 2>&1"
 		$msg = Invoke-Plink -remoteHost $server -login $linuxuser -passwd $linuxpassword -command $lcmd
 		If ( $msg.Contains("The system is going down for reboot NOW!") ) { $result.Value = "success" }
 		Else {
