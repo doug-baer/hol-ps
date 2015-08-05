@@ -2,8 +2,8 @@
 .NOTES
 	Name:    OvfAnalyzer.ps1
 	Author:  Doug Baer
-	Version: 1.1.1
-	Date:	   2015-05-28
+	Version: 1.2
+	Date:	   2015-07-01
 
 .SYNOPSIS
 	Parse OVF files and extract sizing information for HOL vPod analysis
@@ -43,6 +43,7 @@
 	1.0   - Initial concept
 	1.1   - Revised and cleaned up variables, added -ExpandVMs option
 	1.1.1 - Added documentation, renamed ContentLibrary parameter to Library, cleaned up code.
+	1.2   - Corrected per-VM reporting issue with disk space calculation
 
 #>
 
@@ -108,6 +109,7 @@ PROCESS {
 			$currentVM = "" | Select SKU, Name, NumCPU, GbRAM, GbDisk
 			$currentVM.SKU = $ovf.Envelope.VirtualSystemCollection.Name
 			$currentVM.Name = $vm.Name
+			$currentVM.GbDisk = 0
 			
 			$numVcpu = ($vm.VirtualHardwareSection.Item | Where {$_.description -like 'Number of Virtual CPUs'}).VirtualQuantity
 			$totalVcpu += $numVcpu
@@ -143,7 +145,7 @@ PROCESS {
 				}
 				
 				$totalGbDisk += $GbDisk
-				$currentVM.GbDisk = $GbDisk
+				$currentVM.GbDisk += $GbDisk
 			}
 			$reportVMs += $currentVM
 		}
