@@ -38,6 +38,8 @@ $statusTable = @{
 	'AUTOLAB'  = 201
 	'STARTING' = 202
 	'TIMEOUT'  = 203
+	'FIREWALL' = 204
+	'ALERT'    = 205
 }
 
 Function Invoke-Plink ([string]$remoteHost, [string]$login, [string]$passwd, [string]$command) {
@@ -104,7 +106,7 @@ Function Report-VpodStatus ([string] $newStatus) {
 
 Function Write-Progress ([string] $msg, [string] $code) {
 	$myTime = $(Get-Date)
-	If( $code -eq 'READY' ) {
+	If( $msg -eq 'Ready' ) {
 		$dateCode = "{0:D2}/{1:D2} {2:D2}:{3:D2}" -f $myTime.month,$myTime.day,$myTime.hour,$myTime.minute
 		Set-Content -Value ([byte[]][char[]] "$msg $dateCode") -Path $statusFile -Encoding Byte
 		#also change text color to Green (55cc77) in desktopInfo
@@ -195,33 +197,6 @@ Function Connect-Restart-vCenter ( [array]$vCenters, [REF]$maxMins ) {
 				}
 			}
 		}
-		# now check NGC URL
-		Foreach ($url in $($URLs.Keys)) {
-			If ( $url.Contains( $vcserver ) ) { Break }
-		}
-		Do {
-			Test-URL $url $URLs[$url] ([REF]$result)
-			$currentRunningSeconds = Get-RuntimeSeconds $VCstartTime
-			$currentRunningMinutes = $currentRunningSeconds / 60
-			If ( $result -eq "success" ) { Continue } # if success continue on to next vCenter
-			If( ($currentRunningMinutes -gt $ngcBootMinutes ) -And !($VCrestarted) ) { 
-				# try restarting vCenter to fix the issue
-				Write-Output "Restarting vCenter $vcserver" 
-				Restart-VC $vcserver ([REF]$VCrestarted)
-				If ($VCrestarted -eq "success") { 
-					$maxMinutesBeforeFail = $maxMinutesBeforeFail + $ngcBootMinutes
-					$VCstartTime = $(Get-Date)  # record the reboot for this VC
-					$currentRunningSeconds = Get-RuntimeSeconds $VCstartTime
-					$currentRunningMinutes = $currentRunningSeconds / 60
-				} Else {
-					LabFail "Cannot restart vCenter $vcserver.  Failing lab."
-				}
-			}
-			If ( ($currentRunningMinutes -gt $ngcBootMinutes ) -And ($VCrestarted -eq "success" ) ) {
-				LabFail "Failing the lab after restarting vCenter $vcserver"
-			}		
-			LabStartup-Sleep $sleepSeconds
-		} Until ($result -eq "success")
 	}
 	$maxMins.value = $maxMinutesBeforeFail
 } #End Connect-Restart-vCenter
@@ -245,19 +220,29 @@ Function Connect-VC ([string]$server, [string]$username, [string]$password, [REF
 
 Function Restart-VC ([string]$server, [REF]$result){
 	If ($server.Contains("vcsa") ) {
-		# vSphere 6 appliance is most likely
-		Write-Host "Trying appliance vCenter 6 reboot..."
-		$lcmd = "shutdown -r now 2>&1"
-		$msg = Invoke-Plink -remoteHost $server -login $linuxuser -passwd $linuxpassword -command $lcmd
-		If ( $msg.Contains("The system is going down for reboot NOW!") ) { $result.Value = "success" }
-		Else {
-			# if not success then try vSphere 5
-			Write-Host "Trying appliance vCenter 5 reboot..."
+		# reboot Platform Services Controller first if present
+		$psc = 'psc-01a.corp.local'
+		$pingResult = ''
+		Test-Ping $psc ([REF]$pingResult)
+		If ($pingResult -eq "success") {
+			Write-Host "Trying Platform Services Controller reboot..."
 			$lcmd = "init 6 2>&1"
-			$msg = Invoke-Plink -remoteHost $server -login $linuxuser -passwd $linuxpassword -command $lcmd
-			If ( $msg -eq $null ) { $result.Value = "success" }
-			Else { $result.Value = "fail" }
+			$msg = Invoke-Plink -remoteHost $psc -login $linuxuser -passwd $linuxpassword -command $lcmd
+			If ( $msg -eq $null ) { 
+				Write-Host "Pausing 60 seconds for Platform Services Controller to reboot..."
+				LabStartup-Sleep 60
+				Do { 
+					Test-Ping $psc ([REF]$pingResult)
+					LabStartup-Sleep $sleepSeconds
+				} Until ($pingResult -eq "success")
+			}
 		}
+		# now reboot vcsa-01a
+		Write-Host "Trying vCenter appliance reboot..."
+		$lcmd = "init 6 2>&1"
+		$msg = Invoke-Plink -remoteHost $server -login $linuxuser -passwd $linuxpassword -command $lcmd
+		If ( $msg -eq $null ) { $result.Value = "success" }
+		Else { $result.Value = "fail" }
 	} Else {
 		# try Windows
 		Write-Host "Trying Windows vCenter reboot..."
@@ -326,13 +311,14 @@ Function Start-Nested ( [array] $records ) {
 				$powerState = [string]$entity.Status
 			}
 			If ($task.State -eq "Error") {
-				Write-Progress "FATAL ERROR" 'FAIL-2'  
-				$currentRunningSeconds = Get-RuntimeSeconds $startTime
-				$currentRunningMinutes = $currentRunningSeconds / 60
-				Write-Output $("FAILURE: labStartup ran for {0:N0} minutes and has been terminated."  -f $currentRunningMinutes )
+				# Because we have checked storage, we will not fail the lab but merely note the issue starting the L2 VM or vApp
+				#Write-Progress "FATAL ERROR" 'FAIL-2'  
+				#$currentRunningSeconds = Get-RuntimeSeconds $startTime
+				#$currentRunningMinutes = $currentRunningSeconds / 60
+				#Write-Output $("FAILURE: labStartup ran for {0:N0} minutes and has been terminated."  -f $currentRunningMinutes )
 				Write-Output $("Cannot start {0} {1} on {2}" -f $type, $name, $vcenter )
-				Write-Output $("Error task Id {0} task state: {1}" -f $task.Id, $task.State )
-				Exit
+				Write-Output $("Error task Id {0} task state: {1} task status: {2}" -f $task.Id, $task.State, $task.Status )
+				#Exit
 			}
 			If (($task.State -eq "Queued" ) -or ($task.State -eq "Running" )) {
 				Write-Output $("{0} power-on task is {1}.  Moving on..." -f $name, $task.State )
@@ -503,5 +489,61 @@ Function LabFail ( [string] $message ) {
 	Write-Output $("FAILURE: labStartup ran for {0:N0} minutes and has been terminated."  -f $currentRunningMinutes )
 	Exit
 } #End LabFail
+
+Function Check-Datastore ([string] $dsline, [REF]$result ) 
+{
+	($server,$datastoreName) = $dsline.Split(":")
+	$ds = Get-Datastore $datastoreName
+	If ( $ds.State -eq "Available" ) {
+		Try {
+			New-PSDrive -Name "ds" -PsProvider VimDatastore -Root "\" -Datastore $ds
+			((Get-ChildItem ds: -ErrorAction 1 | Measure-Object).Count -gt 0)
+			Get-PSDrive "ds" | Remove-PSDrive
+			$result.value = "success"
+			Write-Host "Datastore $datastoreName on $server looks ok."
+		}
+		Catch {
+			Write "Datastore $datastoreName on $server is not looking good."
+			$result.value = "fail"
+			# fail lab at this point?
+		}
+	} Else {
+		Write-Output "$datastoreName is not available. Rebooting $server..."
+		$lcmd = "init 6 2>&1"
+		$msg = Invoke-Plink -remoteHost $server -login $linuxuser -passwd $linuxpassword -command $lcmd
+		If ( $msg -eq $null ) { 
+			Write-Host "Pausing 60 seconds for $server to reboot..."
+			LabStartup-Sleep 60
+			$pingResult = ''
+			Do { 
+					Test-Ping $server ([REF]$pingResult)
+					LabStartup-Sleep $sleepSeconds
+			} Until ($pingResult -eq "success")
+		}
+		# how long does it take for this to succeed after storage reboot?
+		Write-Host "Pausing another 60 seconds for $server to come up..."
+		LabStartup-Sleep 60
+		Do { 
+				Write-Host "Datastore $datastoreName not available yet..."
+				$ds = Get-Datastore $datastoreName
+				LabStartup-Sleep $sleepSeconds
+		} Until ($ds.State -eq "Available")
+		Write-Host "Datastore $datastoreName appears to be available now..."
+		Try {
+			New-PSDrive -Name "ds" -PsProvider VimDatastore -Root "\" -Datastore $ds
+			((Get-ChildItem ds: -ErrorAction 1 | Measure-Object).Count -gt 0)
+			Get-PSDrive "ds" | Remove-PSDrive
+			$result.value = "success"
+		}
+		Catch {
+			Write-Progress "FATAL ERROR" 'FAIL-2'  
+			$currentRunningSeconds = Get-RuntimeSeconds $startTime
+			$currentRunningMinutes = $currentRunningSeconds / 60
+			Write-Output $("FAILURE: labStartup ran for {0:N0} minutes and has been terminated."  -f $currentRunningMinutes )
+			Write-Output $("Datastore {0} is not looking good after reboot of {1}" -f $datastoreName, $server )
+			Exit
+		}
+	}
+} #End Check-Datastore
 
 
