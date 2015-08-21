@@ -94,7 +94,12 @@ $vCenters = @(
 $ESXiHosts = @(
 	'esx-01a.corp.local:22'
 	'esx-02a.corp.local:22'
-	)
+)
+
+# FreeNAS NFS datastore names in vCenter
+$datastores = @(
+	'stga-01a.corp.local:ds-site-a-nfs01'
+)
 
 #Windows Services to be checked / started
 $windowsServices = @(
@@ -237,6 +242,14 @@ Write-Progress "Connecting vCenter" 'STARTING'
 $maxMins = 0
 Connect-Restart-vCenter $vCenters ([REF]$maxMins)
 $maxMinutesBeforeFail = $maxMins
+
+# check the FreeNAS NFS datastores and reboot storage if necessary 
+Foreach ($dsLine in $datastores) {
+	Do { 
+		Check-Datastore $dsLine ([REF]$result)
+		LabStartup-Sleep $sleepSeconds
+	} Until ($result -eq "success")
+}
 
 ##############################################################################
 ##### Lab Startup - STEP #2 (Starting Nested VMs and vApps) 
