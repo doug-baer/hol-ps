@@ -233,11 +233,7 @@ Foreach ($ESXihost in $ESXiHosts) {
 
 Write-Progress "Connecting vCenter" 'STARTING'
 
-# use the simple function to connect to vCenters if vC is reliable
-#Connect-vCenter $vCenters
-
-# or attempt to connect to each vCenter and restart if no connection by $vcBootMinutes
-# also verifies NGC URL is available and restart if no connection by $ngcBootMinutes
+# attempt to connect to each vCenter and restart if no connection by $vcBootMinutes
 # only ONE vCenter restart will be attempted then the lab will fail.
 $maxMins = 0
 Connect-Restart-vCenter $vCenters ([REF]$maxMins)
