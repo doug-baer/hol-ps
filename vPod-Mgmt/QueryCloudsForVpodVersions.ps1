@@ -16,7 +16,7 @@ Function QueryCloudsForVpodVersions {
 		$Clouds = @('HOL','VW2','SC2'),
 		$Catalog = 'HOL-Masters',
 		$LibPath = 'E:\HOL-Library',
-		$VpodFilter = 'HOL-*'
+		$VpodFilter = '*-16*'
 	)
 	
 	BEGIN {
@@ -79,7 +79,7 @@ Function QueryCloudsForVpodVersions {
 			}
 			$out += $line
 		}
-		
+		#Note: Format-Table won't output more than 9 columns at a time
 		$out | Sort-Object -Property "SKU" | Format-Table -AutoSize
 	}
 } #QueryCloudsForVpodVersions
