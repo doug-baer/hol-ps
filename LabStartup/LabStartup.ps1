@@ -71,8 +71,6 @@ $statusFile = Join-Path $labStartupRoot 'startup_status.txt'
 $sleepSeconds = 10
 # number of minutes it takes vCenter to boot before API connection
 $vcBootMinutes = 10
-# number of minutes it takes for vSphere Web Client URL
-$ngcBootMinutes = 15
 # if still running this long, fail the pod (pod Timeout)
 $maxMinutesBeforeFail = 30
 # path to Plink.exe -- for status & managing Linux
