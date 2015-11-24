@@ -1,9 +1,9 @@
 <#
 .NOTES
-	Name:			Sync-VPod-Pull
+	Name:		Sync-VPod-Pull
 	Author:		Doug Baer
 	Version:	2.3.1
-	Date:			2015-05-20
+	Date:		2015-05-20
 
 .SYNOPSIS
 	Efficiently synchronize two OVF exports between sites using specified local data as the seed.
