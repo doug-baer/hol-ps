@@ -104,9 +104,43 @@ $datastores = @(
 	'stga-01a.corp.local:ds-site-a-nfs01'
 )
 
-#Windows Services to be checked / started
+# Windows vCenter services
+# services start top to bottom (services are dependent on the services above them)
+# not all services will need to be uncommented
+# essential services and dependencies that are known to be troublesome are uncommented
+# this adds about 5 minutes to startup time
+# uncomment other services that you know your lab will use
+$windowsvCenterServices = @(
+	#'vc-01b.corp.local:MSSQLSERVER' # Microsoft SQL Server
+	#'vc-01b.corp.local:SQLSERVERAGENT' # Microsoft SQL Server Agent
+	#'vc-01b.corp.local:vmware-cis-config' # VMware vCenter Configuration Service
+	#'vc-01b.corp.local:VMWareAfdService'  # VMware Afd Service
+	#'vc-01b.corp.local:rhttpproxy'  # VMware HTTP Reverse Proxy
+	#'vc-01b.corp.local:VMwareComponentManager' # VMware Component Manager
+	#'vc-01b.corp.local:VMwareServiceControlAgent' # VMware Service Control Agent
+	#'vc-01b.corp.local:vapiEndpoint' # VMware vAPI Endpoint
+	#'vc-01b.corp.local:vmwarevws' # VMware System and Hardware Health Manager
+	'vc-01b.corp.local:invsvc' # VMware Inventory Service
+	#'vc-01b.corp.local:mbcs' # VMware Message Bus Config Service
+	'vc-01b.corp.local:vpxd' # VMware VirtualCenter Server
+	'vc-01b.corp.local:vimPBSM' # VMware vSphere Profile-Driven Storage Service
+	'vc-01b.corp.local:vmSyslogCollector' # VMware Syslog Collector
+	'vc-01b.corp.local:vdcs' # VMware Content Library Service
+	'vc-01b.corp.local:EsxAgentManager' # VMware ESX Agent Manager
+	'vc-01b.corp.local:vmware-vpx-workflow' # VMware vCenter workflow manager
+	'vc-01b.corp.local:VServiceManager' # VMware vService Manager
+	'vc-01b.corp.local:vspherewebclientsvc' # vSphere Web Client'
+	'vc-01b.corp.local:vmware-perfcharts' # VMware Performance Charts
+)
+
+# Windows Services to be checked / started
+# uncomment and edit if service is present in your lab
 $windowsServices = @(
-#	'controlcenter.corp.local:VMTools'
+	#'controlcenter.corp.local:VMTools'
+	#'srm-01a.corp.local:vmware-dr-vpostgres' # Site A SRM embedded database
+	#'srm-01a.corp.local:vmware-dr' # Site A SRM server
+	#'srm-01b.corp.local:vmware-dr-vpostgres' # Site B SRM embedded database
+	#'srm-01b.corp.local:vmware-dr' # Site A SRM server
 )
 
 #Linux Services to be checked / started

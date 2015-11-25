@@ -143,6 +143,7 @@ Function Connect-Restart-vCenter ( [array]$vCenters, [REF]$maxMins ) {
 	$waitSecs = '30' # seconds to wait for service startup/shutdown
 	$action = 'start'
 	Foreach ($vcserver in $vCenters) {
+		$NGCclient = "false"
 		$VCrestarted = $false
 		$VCstartTime = $startTime
 		# do a ping test first
@@ -189,14 +190,13 @@ Function Connect-Restart-vCenter ( [array]$vCenters, [REF]$maxMins ) {
 			}
 		}
 		If ( $NGCclient -ne "started" ) {  # Windows vCenter?
-			Foreach ($service in $windowsServices) {
+			Foreach ($service in $windowsvCenterServices) {
 				If ( $service.Contains($vcserver) ) {
 					($wserver,$wservice) = $service.Split(":")
 					Write-Output "Performing $action $wservice on $wserver"
 					Do {
 						ManageWindowsService $action $wserver $wservice $waitSecs ([REF]$result)
 					} Until ($result -eq "success")
-					Break
 				}
 			}
 		}
