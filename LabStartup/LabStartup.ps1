@@ -109,19 +109,19 @@ $datastores = @(
 # not all services will need to be uncommented
 # essential services and dependencies that are known to be troublesome are uncommented
 # this adds about 5 minutes to startup time
-# uncomment other services that you know your lab will use
+# add or edit based on Windows vCenter(s) in your lab
 $windowsvCenterServices = @(
-	#'vc-01b.corp.local:MSSQLSERVER' # Microsoft SQL Server
-	#'vc-01b.corp.local:SQLSERVERAGENT' # Microsoft SQL Server Agent
-	#'vc-01b.corp.local:vmware-cis-config' # VMware vCenter Configuration Service
-	#'vc-01b.corp.local:VMWareAfdService'  # VMware Afd Service
-	#'vc-01b.corp.local:rhttpproxy'  # VMware HTTP Reverse Proxy
-	#'vc-01b.corp.local:VMwareComponentManager' # VMware Component Manager
-	#'vc-01b.corp.local:VMwareServiceControlAgent' # VMware Service Control Agent
-	#'vc-01b.corp.local:vapiEndpoint' # VMware vAPI Endpoint
-	#'vc-01b.corp.local:vmwarevws' # VMware System and Hardware Health Manager
+	'vc-01b.corp.local:MSSQLSERVER' # Microsoft SQL Server
+	'vc-01b.corp.local:SQLSERVERAGENT' # Microsoft SQL Server Agent
+	'vc-01b.corp.local:vmware-cis-config' # VMware vCenter Configuration Service
+	'vc-01b.corp.local:VMWareAfdService'  # VMware Afd Service
+	'vc-01b.corp.local:rhttpproxy'  # VMware HTTP Reverse Proxy
+	'vc-01b.corp.local:VMwareComponentManager' # VMware Component Manager
+	'vc-01b.corp.local:VMwareServiceControlAgent' # VMware Service Control Agent
+	'vc-01b.corp.local:vapiEndpoint' # VMware vAPI Endpoint
+	'vc-01b.corp.local:vmwarevws' # VMware System and Hardware Health Manager
 	'vc-01b.corp.local:invsvc' # VMware Inventory Service
-	#'vc-01b.corp.local:mbcs' # VMware Message Bus Config Service
+	#'vc-01b.corp.local:mbcs' # VMware Message Bus Config Service (ok to leave commented out)
 	'vc-01b.corp.local:vpxd' # VMware VirtualCenter Server
 	'vc-01b.corp.local:vimPBSM' # VMware vSphere Profile-Driven Storage Service
 	'vc-01b.corp.local:vmSyslogCollector' # VMware Syslog Collector
@@ -134,7 +134,7 @@ $windowsvCenterServices = @(
 )
 
 # Windows Services to be checked / started
-# uncomment and edit if service is present in your lab
+# uncomment, add or edit if service is present in your lab
 $windowsServices = @(
 	#'controlcenter.corp.local:VMTools'
 	#'srm-01a.corp.local:vmware-dr-vpostgres' # Site A SRM embedded database
@@ -146,7 +146,7 @@ $windowsServices = @(
 #Linux Services to be checked / started
 $linuxServices = @(
 #	'router.corp.local:vmware-tools'
-#	'vcsa-01a.corp.local:vsphere-client'
+	'vcsa-01a.corp.local:vsphere-client'
 )
 
 # Nested Virtual Machines to be powered on
@@ -178,7 +178,7 @@ $URLs = @{
 
 # IP addresses to be pinged
 $Pings = @(
-	'192.168.110.1'
+	#'192.168.110.1'
 )
 
 ##############################################################################
@@ -265,12 +265,9 @@ Foreach ($ESXihost in $ESXiHosts) {
 
 Write-Progress "Connecting vCenter" 'STARTING'
 
-<<<<<<< HEAD
+
 # attempt to connect to each vCenter and restart if no connection by $vcBootMinutes
-=======
 # Attempt to connect to each vCenter. Restart if no connection within $vcBootMinutes
-# also verifies NGC URL is available and restarts if no connection by $ngcBootMinutes
->>>>>>> origin/master
 # only ONE vCenter restart will be attempted then the lab will fail.
 $maxMins = 0
 Connect-Restart-vCenter $vCenters ([REF]$maxMins)
@@ -332,24 +329,12 @@ Foreach ($service in $TCPservices) {
 
 Write-Progress "Manage Win Svcs" 'GOOD-4'
 
-# options are "start", "restart", "stop" or "query"
-$action = "start"
-
 # Manage Windows services on remote machines
-Foreach ($service in $windowsServices) {
-	($wserver,$wservice) = $service.Split(":")
-	Write-Output "Performing $action $wservice on $wserver"
-	$waitSecs = '30' # seconds to wait for service startup/shutdown
-	Do {
-		$status = ManageWindowsService $action $wserver $wservice $waitSecs ([REF]$result)
-# If using "query" option, uncomment next line to display current state in log
-#		Write-Host "status is" $status
-	} Until ($result -eq "success")
-}
+StartWindowsServices $windowsServices
 
 Write-Output "$(Get-Date) Finished $action Windows services"
 
-Write-Progress "Manage Linux Svcs" 'GOOD-3'
+Write-Progress "Manage Linux Svcs" 'GOOD-4'
 
 # options are "start", "restart", "stop" or "query"
 $action = "start"
@@ -366,7 +351,6 @@ Foreach ($service in $linuxServices) {
 }
 
 Write-Output "$(Get-Date) Finished $action Linux services"
-
 
 ##############################################################################
 ##### Lab Startup - STEP #5 (Testing URLs) 
