@@ -1,5 +1,5 @@
 <#
-	LabStartup Functions - 2015-11-23
+	LabStartup Functions - 2015-12-4
 #>
 
 Function Start-AutoLab () {
@@ -401,6 +401,34 @@ Function ManageLinuxService ([string]$action, [string]$server, [string]$service,
 	}
 } #End ManageLinuxService
 
+Function StartWindowsServices ( [array] $winServices ) {
+
+	$action = "start"
+	$maxWinSvcTries = 20
+	$waitSecs = '30' # seconds to wait for service startup/shutdown
+	$ccRebootFlag = 'C:\hol\CCrebooted.txt'
+
+	# Manage Windows services on remote machines
+	Foreach ($service in $winServices) {
+		$ctr = 0
+		($wserver,$wservice) = $service.Split(":")
+		Write-Output "Performing $action $wservice on $wserver"
+		Do {
+			$status = ManageWindowsService $action $wserver $wservice $waitSecs ([REF]$result)
+			$ctr = $ctr + 1
+			If ( $ctr -eq $maxWinSvcTries ) {
+				$message = "$(Get-Date) Cannot start $wservice on $wserver after $ctr attempts."
+				If ( Test-Path $ccRebootFlag) { LabFail "$message ControlCenter rebooted." }
+				Else {
+					Set-Content -Value "$message rebooting ControlCenter" -Path $ccRebootFlag
+					Restart-Computer ControlCenter
+				}
+			}
+		} Until ($result -eq "success")
+	}
+}  # end StartWindowsServices 
+###
+
 Function ManageWindowsService ([string] $action, [string]$server, [string]$service, [int]$waitsec, [REF]$result) {
 <#
 	This function performs an action (start/stop/restart/query) on the specified 
@@ -500,7 +528,7 @@ Function Check-Datastore ([string] $dsline, [REF]$result )
 	If ( $ds.State -eq "Available" ) {
 		Try {
 			New-PSDrive -Name "ds" -PsProvider VimDatastore -Root "\" -Datastore $ds | Out-Null
-			((Get-ChildItem ds: -ErrorAction 1 | Measure-Object).Count -gt 0)
+			$check = ((Get-ChildItem ds: -ErrorAction 1 | Measure-Object).Count -gt 0)
 			Get-PSDrive "ds" | Remove-PSDrive
 			$result.value = "success"
 			Write-Host "Datastore $datastoreName on $server looks ok."
