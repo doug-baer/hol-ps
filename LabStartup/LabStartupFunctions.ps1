@@ -2,6 +2,33 @@
 	LabStartup Functions - 2015-12-4
 #>
 
+# Windows vCenter services
+# services start top to bottom (services are dependent on the services above them)
+# this adds about 5 minutes to startup time if starting all of these services
+# think of this more as documentation - the key services to start are vpxd and vspherewebclientsvc
+$windowsvCenterServices = @(
+	'MSSQLSERVER' # Microsoft SQL Server
+	'SQLSERVERAGENT' # Microsoft SQL Server Agent
+	'vmware-cis-config' # VMware vCenter Configuration Service
+	'VMWareAfdService'  # VMware Afd Service
+	'rhttpproxy'  # VMware HTTP Reverse Proxy
+	'VMwareComponentManager' # VMware Component Manager
+	'VMwareServiceControlAgent' # VMware Service Control Agent
+	'vapiEndpoint' # VMware vAPI Endpoint
+	'vmwarevws' # VMware System and Hardware Health Manager
+	'invsvc' # VMware Inventory Service
+	#'mbcs' # VMware Message Bus Config Service (ok to leave commented out)
+	'vpxd' # VMware VirtualCenter Server
+	'vimPBSM' # VMware vSphere Profile-Driven Storage Service
+	'vmSyslogCollector' # VMware Syslog Collector
+	'vdcs' # VMware Content Library Service
+	'EsxAgentManager' # VMware ESX Agent Manager
+	'vmware-vpx-workflow' # VMware vCenter workflow manager
+	'VServiceManager' # VMware vService Manager
+	'vspherewebclientsvc' # vSphere Web Client'
+	'vmware-perfcharts' # VMware Performance Charts
+)
+
 Function Start-AutoLab () {
 <#
 	Please leave this function here to enable scale testing automation:
@@ -129,8 +156,8 @@ Function Write-Progress ([string] $msg, [string] $code) {
 
 
 Function Connect-vCenter ( [array] $vCenters ) {
-
-	Foreach ($vcserver in $vCenters) {
+	Foreach ($entry in $vCenters) {
+		($vcserver,$type) = $entry.Split(":")
 		Do {
 			Connect-VC $vcserver $vcuser $password ([REF]$result)
 			LabStartup-Sleep $sleepSeconds
@@ -142,7 +169,8 @@ Function Connect-Restart-vCenter ( [array]$vCenters, [REF]$maxMins ) {
 	
 	$waitSecs = '30' # seconds to wait for service startup/shutdown
 	$action = 'start'
-	Foreach ($vcserver in $vCenters) {
+	Foreach ($entry in $vCenters) {
+		($vcserver,$type) = $entry.Split(":")
 		$NGCclient = "false"
 		$VCrestarted = $false
 		$VCstartTime = $startTime
@@ -151,6 +179,11 @@ Function Connect-Restart-vCenter ( [array]$vCenters, [REF]$maxMins ) {
 			LabStartup-Sleep $sleepSeconds
 			Test-Ping $vcserver ([REF]$result)
 		} Until ($result -eq "success" )
+		If ( $type -eq "windows" ) {
+			Do {
+				ManageWindowsService $action $vcserver 'vpxd' $waitSecs ([REF]$result)
+			} Until ($result -eq "success")
+		}
 		Do {
 			Connect-VC $vcserver $vcuser $password ([REF]$result)
 			LabStartup-Sleep $sleepSeconds
@@ -178,27 +211,15 @@ Function Connect-Restart-vCenter ( [array]$vCenters, [REF]$maxMins ) {
 			}
 		} Until ($result -eq "success")
 		# make certain the NGC service is started
-		Foreach ($service in $linuxServices) {
-			If ( $service.Contains($vcserver) ) {
-				($lserver,$lservice) = $service.Split(":")
-				Write-Output "Performing $action $lservice on $lserver"
-				Do {
-					ManageLinuxService $action $lserver $lservice $waitSecs ([REF]$result)
-				} Until ($result -eq "success")
-				$NGCclient = "started"
-				Break
-			}
+		If ( $type -eq "windows" ) {
+			Do {
+				ManageWindowsService $action $vcserver 'vspherewebclientsvc' $waitSecs ([REF]$result)
+			} Until ($result -eq "success")
 		}
-		If ( $NGCclient -ne "started" ) {  # Windows vCenter?
-			Foreach ($service in $windowsvCenterServices) {
-				If ( $service.Contains($vcserver) ) {
-					($wserver,$wservice) = $service.Split(":")
-					Write-Output "Performing $action $wservice on $wserver"
-					Do {
-						ManageWindowsService $action $wserver $wservice $waitSecs ([REF]$result)
-					} Until ($result -eq "success")
-				}
-			}
+		If ( $type -eq "linux" ) {
+			Do {
+				ManageLinuxService $action $vcserver 'vsphere-client' $waitSecs ([REF]$result)
+			} Until ($result -eq "success")
 		}
 	}
 	$maxMins.value = $maxMinutesBeforeFail
@@ -268,7 +289,7 @@ Function Start-Nested ( [array] $records ) {
 		# separate out the vVM name and the owning vCenter
 		($name,$vcenter) = $record.Split(":")
 		# If blank, default to the first/only vCenter
-		If ( $vcenter -eq $null ) { $vcenter = $vCenters[0] }
+		If ( $vcenter -eq $null ) { ($vcenter,$type) = $vCenters[0].Split(":") }
 		If ( $name -eq "Pause" ) {
 		    Write-Host "Pausing for $vcenter seconds..."
 			LabStartup-Sleep $vcenter

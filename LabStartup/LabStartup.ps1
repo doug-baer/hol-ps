@@ -90,7 +90,8 @@ $result = ''
 
 #FQDN(s) of vCenter server(s)
 $vCenters = @(
-	'vcsa-01a.corp.local'
+	'vcsa-01a.corp.local:linux'
+	#'vc-01a.corp.local:windows'
 )
 # Will test ESXi hosts are responding on port 22
 # be sure to enable SSH on all HOL vESXi hosts
@@ -102,35 +103,6 @@ $ESXiHosts = @(
 # FreeNAS NFS datastore names in vCenter
 $datastores = @(
 	'stga-01a.corp.local:ds-site-a-nfs01'
-)
-
-# Windows vCenter services
-# services start top to bottom (services are dependent on the services above them)
-# not all services will need to be uncommented
-# essential services and dependencies that are known to be troublesome are uncommented
-# this adds about 5 minutes to startup time
-# add or edit based on Windows vCenter(s) in your lab
-$windowsvCenterServices = @(
-	'vc-01b.corp.local:MSSQLSERVER' # Microsoft SQL Server
-	'vc-01b.corp.local:SQLSERVERAGENT' # Microsoft SQL Server Agent
-	'vc-01b.corp.local:vmware-cis-config' # VMware vCenter Configuration Service
-	'vc-01b.corp.local:VMWareAfdService'  # VMware Afd Service
-	'vc-01b.corp.local:rhttpproxy'  # VMware HTTP Reverse Proxy
-	'vc-01b.corp.local:VMwareComponentManager' # VMware Component Manager
-	'vc-01b.corp.local:VMwareServiceControlAgent' # VMware Service Control Agent
-	'vc-01b.corp.local:vapiEndpoint' # VMware vAPI Endpoint
-	'vc-01b.corp.local:vmwarevws' # VMware System and Hardware Health Manager
-	'vc-01b.corp.local:invsvc' # VMware Inventory Service
-	#'vc-01b.corp.local:mbcs' # VMware Message Bus Config Service (ok to leave commented out)
-	'vc-01b.corp.local:vpxd' # VMware VirtualCenter Server
-	'vc-01b.corp.local:vimPBSM' # VMware vSphere Profile-Driven Storage Service
-	'vc-01b.corp.local:vmSyslogCollector' # VMware Syslog Collector
-	'vc-01b.corp.local:vdcs' # VMware Content Library Service
-	'vc-01b.corp.local:EsxAgentManager' # VMware ESX Agent Manager
-	'vc-01b.corp.local:vmware-vpx-workflow' # VMware vCenter workflow manager
-	'vc-01b.corp.local:VServiceManager' # VMware vService Manager
-	'vc-01b.corp.local:vspherewebclientsvc' # vSphere Web Client'
-	'vc-01b.corp.local:vmware-perfcharts' # VMware Performance Charts
 )
 
 # Windows Services to be checked / started
@@ -145,8 +117,7 @@ $windowsServices = @(
 
 #Linux Services to be checked / started
 $linuxServices = @(
-#	'router.corp.local:vmware-tools'
-	'vcsa-01a.corp.local:vsphere-client'
+#	'router.corp.local:vmware-tools'  # this is just an example of the format to use
 )
 
 # Nested Virtual Machines to be powered on
@@ -295,7 +266,8 @@ Write-Progress "Starting vVMs" 'STARTING'
 Start-Nested $vApps
 Start-Nested $VMs
 
-Foreach ($vcserver in $vCenters) {
+Foreach ($entry in $vCenters) {
+	($vcserver,$type) = $entry.Split(":")
 	Write-Output "$(Get-Date) disconnecting from $vcserver ..."
 	Disconnect-VIServer -Server $vcserver -Confirm:$false
 }
