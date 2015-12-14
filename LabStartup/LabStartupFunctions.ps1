@@ -599,3 +599,35 @@ Function Check-Datastore ([string] $dsline, [REF]$result )
 } #End Check-Datastore
 
 
+Function Get-URL {
+	[CmdletBinding()] 
+	PARAM ( [string]$url, [string]$lookup ) 
+	PROCESS {
+		#enable TLS 1.2
+		$sp = [System.Net.ServicePointManager]::SecurityProtocol
+		[System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Tls12
+			
+		#Alternative: ADD TLS1.2 to the default (SSLv3 and TLSv1) [NOT TESTED]
+		#[System.Net.ServicePointManager]::SecurityProtocol = ( $sp -bor [System.Net.SecurityProtocolType]::Tls12 )
+		
+		#Disable SSL validation (usually a BAD thing... but this is a LAB)
+		[System.Net.ServicePointManager]::ServerCertificateValidationCallback = {$true}
+		
+		Try {
+			$wc = (New-Object Net.WebClient).DownloadString($url)
+			If( $wc -match $lookup ) {
+				Write-Output "Successfully connected to $url"
+			} Else {
+				Write-Output "Connected to $url but lookup ( $lookup ) did not match"
+			}
+			Write-Verbose $wc
+		}
+		Catch {
+			Write-Output "URL $url not accessible"
+		}
+		
+		#Reset default SSL validation behavior
+		[System.Net.ServicePointManager]::ServerCertificateValidationCallback = $null
+
+	}
+} #End Get-URL
