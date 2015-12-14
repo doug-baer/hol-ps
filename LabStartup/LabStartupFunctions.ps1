@@ -619,8 +619,8 @@ Function Get-URL {
 				Write-Output "Successfully connected to $url"
 			} Else {
 				Write-Output "Connected to $url but lookup ( $lookup ) did not match"
+				Write-Verbose $wc
 			}
-			Write-Verbose $wc
 		}
 		Catch {
 			Write-Output "URL $url not accessible"
