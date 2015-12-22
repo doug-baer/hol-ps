@@ -56,6 +56,7 @@ Write-Output "$startTime beginning LabStartup"
 $vPodSKU = 'HOL-XXX-1799'
 
 # Credentials used to login to vCenters
+# vcuser could be "root" if using ESXi host only
 $vcuser = 'Administrator@corp.local'
 $password = 'VMware1!'
 
@@ -88,10 +89,13 @@ $result = ''
 ### Populate the following with values appropriate to your lab
 ##############################################################################
 
-#FQDN(s) of vCenter server(s)
+# FQDN(s)of vCenter server(s) or ESXi server(s)
+# if nesting a single VM to enable uuid.action = "keep", use local ESXi storage.
+# No need to include vCenter in the vPod if not showing vCenter in the lab 
 $vCenters = @(
 	'vcsa-01a.corp.local:linux'
 	#'vc-01a.corp.local:windows'
+	#'esx-01a.corp.local:esx'
 )
 # Will test ESXi hosts are responding on port 22
 # be sure to enable SSH on all HOL vESXi hosts
@@ -128,6 +132,7 @@ $VMs = @(
 #	'linux-base-01a'
 #	'Pause:30'
 #	'linux-desk-01a:vcsa-01a.corp.local'
+#	'single-vm:esx-01a.corp.local' # if not using vCenter, specify ESXi host
 	)
 
 # as with vVMs, the format of these entries is VAPPNAME:VCENTER
@@ -240,6 +245,7 @@ Write-Progress "Connecting vCenter" 'STARTING'
 # attempt to connect to each vCenter and restart if no connection by $vcBootMinutes
 # Attempt to connect to each vCenter. Restart if no connection within $vcBootMinutes
 # only ONE vCenter restart will be attempted then the lab will fail.
+# this could be an ESXi host although no restart will be attempted.
 $maxMins = 0
 Connect-Restart-vCenter $vCenters ([REF]$maxMins)
 $maxMinutesBeforeFail = $maxMins
@@ -333,9 +339,10 @@ Write-Output "$(Get-Date) Finished testing TCP ports"
 Write-Progress "Checking URLs" 'GOOD-5'
 
 #Testing URLs
+# Uncomment "-Verbose" to see the HTML returned for pattern matching
 Foreach ($url in $($URLs.Keys)) {
 	Do { 
-		Test-URL $url $URLs[$url] ([REF]$result)
+		Test-URL $url $URLs[$url] ([REF]$result) # -Verbose
 		LabStartup-Sleep $sleepSeconds
 	} Until ($result -eq "success")
 }

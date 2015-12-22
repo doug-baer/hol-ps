@@ -184,6 +184,7 @@ Function Connect-Restart-vCenter ( [array]$vCenters, [REF]$maxMins ) {
 				ManageWindowsService $action $vcserver 'vpxd' $waitSecs ([REF]$result)
 			} Until ($result -eq "success")
 		}
+		If ( $type -eq "esx" ) { $VCrestarted = $true }
 		Do {
 			Connect-VC $vcserver $vcuser $password ([REF]$result)
 			LabStartup-Sleep $sleepSeconds
@@ -486,25 +487,30 @@ Function ManageWindowsService ([string] $action, [string]$server, [string]$servi
 	}
 } #End ManageWindowsService
 
-Function Test-URL ([string]$url, [string]$lookup, [REF]$result) {
+Function Test-URL { 
+	[CmdletBinding()] 
+	PARAM([string]$url, [string]$lookup, [REF]$result)
+	PROCESS {
 <#
 	This function tries to access the specified URL and looks for the string
 	specified in the resulting HTML
 	It sets the $result variable to 'success' or 'fail' based on the result 
 #>
-	Try {
-		$wc = (New-Object Net.WebClient).DownloadString($url)
-		If( $wc -match $lookup ) {
-			Write-Output "Successfully connected to $url"
-			$result.value = "success"
-		} Else {
-			Write-Output "Connected to $url but lookup ( $lookup ) did not match"
+		Try {
+			$wc = (New-Object Net.WebClient).DownloadString($url)
+			If( $wc -match $lookup ) {
+				Write-Output "Successfully connected to $url"
+				$result.value = "success"
+			} Else {
+				Write-Output "Connected to $url but lookup ( $lookup ) did not match"
+				Write-Verbose $wc
+				$result.value = "fail"
+			}
+		}
+		Catch {
+			Write-Output "URL $url not accessible"
 			$result.value = "fail"
 		}
-	}
-	Catch {
-		Write-Output "URL $url not accessible"
-		$result.value = "fail"
 	}
 } #End Test-URL
 
