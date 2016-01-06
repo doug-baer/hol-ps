@@ -282,11 +282,10 @@ Foreach ($entry in $vCenters) {
 ##### Lab Startup - STEP #3 (Testing Pings) 
 ##############################################################################
 
-#Ensure services in the $TCPServices array are answering on specified ports 
-Foreach ($service in $TCPservices) {
-	($server,$port) = $service.Split(":")
+# Wait for hosts in the $Pings array to respond
+Foreach ($ping in $Pings) {
 	Do { 
-		Test-TcpPortOpen $server $port ([REF]$result)
+		Test-Ping $ping ([REF]$result)
 		LabStartup-Sleep $sleepSeconds
 	} Until ($result -eq "success")
 }
@@ -322,10 +321,11 @@ Write-Output "$(Get-Date) Finished $action Linux services"
 
 Write-Progress "Testing TCP ports" 'GOOD-4'
 
-# Wait for hosts in the $Pings array to respond
-Foreach ($ping in $Pings) {
+#Ensure services in the $TCPServices array are answering on specified ports 
+Foreach ($service in $TCPservices) {
+	($server,$port) = $service.Split(":")
 	Do { 
-		Test-Ping $ping ([REF]$result)
+		Test-TcpPortOpen $server $port ([REF]$result)
 		LabStartup-Sleep $sleepSeconds
 	} Until ($result -eq "success")
 }
