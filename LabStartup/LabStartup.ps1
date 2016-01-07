@@ -10,11 +10,11 @@ on TCP ports or via URLs. Records progress into a log file and simple status int
 for consumption by DesktopInfo. Modifies 6th NIC on vpodrouter to report status upstream.
 
 .NOTES
-LabStartup.ps1 v4.1 - November 23, 2015 
+LabStartup.ps1 - January 7, 2016
 * A majority of the functions are loaded via C:\HOL\LabStartupFunctons.ps1
 * URLs must begin with http:// or https:// (with valid certificate)
 * The IP address on the eth5 NIC of the vpodrouter is set using SSH (plink.exe) 
-  and sudo (installed on the vpodrouter) using the holuser account. 
+  and sudo (installed on the vpodrouter) using the "holuser" account. 
 * NEW: set $vPodSKU variable to pod's SKU
 
 .EXAMPLE
@@ -41,7 +41,7 @@ If( Test-Path $InvocationPath ) {
 	. $InvocationPath
 	Write-Verbose "Loading functions from $InvocationPath"
 } Else {
-	Write-Verbose -Fore Red "ERROR: Unable to find $InvocationPath"
+	Write-Verbose "ERROR: Unable to find $InvocationPath"
 	Break
 }
 
