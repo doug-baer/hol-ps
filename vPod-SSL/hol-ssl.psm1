@@ -1,7 +1,7 @@
 ###
 # HOL SSL Certificate Module
 #
-# Version 0.6 - 9 March 2015 
+# Version 0.7 - 12 January 2016
 #	 !! WARNING: VERY UGLY CODE PRESENT
 #
 # Doug Baer 
@@ -35,11 +35,25 @@ Function Get-CaCertificate {
 	Extract the CA certificate from the local CA into a file
 #>
 	PARAM(
-		$CA_Certificate = 'C:\HOL\SSL\CA-Certificate.cer'
+		$CA_Certificate = 'C:\HOL\SSL\CA-Certificate.cer',
+		$OutFormat = 'PEM'
 	)
 	PROCESS {
-		#Powershell does not seem to like the "." in the switch, so we run through CMD.EXE
-		cmd /c "certutil -ca.cert $CA_Certificate"
+		# The path to the openssl executable
+		$OpenSSLExe =	"c:\hol\ssl\ssl-certificate-updater-tool-1308332\tools\openssl\openssl.exe"
+		if (!(Test-Path $OpenSSLExe)) {throw "$OpenSSLExe required"}
+		New-Alias -Name OpenSSL $OpenSSLExe
+
+		if( $OutFormat -eq 'PEM' ) {
+			$CA_CertificateTemp = $CA_Certificate + '.tmp'
+			#Powershell does not seem to like the "." in the switch, so we run through CMD.EXE
+			cmd /c "certutil -ca.cert $CA_CertificateTemp" | Out-Null
+			#Convert it to PEM/ASCII from DER
+			OpenSSL x509 -in $CA_CertificateTemp -inform DER -outform PEM -out $CA_Certificate
+			Remove-Item $CA_CertificateTemp
+		} else {
+			cmd /c "certutil -ca.cert $CA_Certificate" | Out-Null
+		}
 		Write-Host "Complete. File is $CA_Certificate"
 	}
 } #Get-CaCertificate
