@@ -121,7 +121,7 @@ $windowsServices = @(
 
 #Linux Services to be checked / started
 $linuxServices = @(
-#	'router.corp.local:vmware-tools'  # this is just an example of the format to use
+ 'vcsa-01a.corp.local:vsphere-client'  # include this entry if using a vCenter appliance
 )
 
 # Nested Virtual Machines to be powered on
