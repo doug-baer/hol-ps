@@ -496,6 +496,14 @@ Function Test-URL {
 	specified in the resulting HTML
 	It sets the $result variable to 'success' or 'fail' based on the result 
 #>
+		$sp = [System.Net.ServicePointManager]::SecurityProtocol
+			
+		#ADD TLS1.2 to the default (SSLv3 and TLSv1)
+		[System.Net.ServicePointManager]::SecurityProtocol = ( $sp -bor [System.Net.SecurityProtocolType]::Tls12 )
+		
+		#Disable SSL validation (usually a BAD thing... but this is a LAB)
+		[System.Net.ServicePointManager]::ServerCertificateValidationCallback = {$true}
+		
 		Try {
 			$wc = (New-Object Net.WebClient).DownloadString($url)
 			If( $wc -match $lookup ) {
@@ -511,7 +519,10 @@ Function Test-URL {
 			Write-Output "URL $url not accessible"
 			$result.value = "fail"
 		}
+		#Reset default SSL validation behavior
+		[System.Net.ServicePointManager]::ServerCertificateValidationCallback = $null
 	}
+
 } #End Test-URL
 
 Function Get-RuntimeSeconds ( [datetime]$start ) {
@@ -611,10 +622,10 @@ Function Get-URL {
 	PROCESS {
 		#enable TLS 1.2
 		$sp = [System.Net.ServicePointManager]::SecurityProtocol
-		[System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Tls12
+		#[System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Tls12
 			
-		#Alternative: ADD TLS1.2 to the default (SSLv3 and TLSv1) [NOT TESTED]
-		#[System.Net.ServicePointManager]::SecurityProtocol = ( $sp -bor [System.Net.SecurityProtocolType]::Tls12 )
+		#Alternative: ADD TLS1.2 to the default (SSLv3 and TLSv1)
+		[System.Net.ServicePointManager]::SecurityProtocol = ( $sp -bor [System.Net.SecurityProtocolType]::Tls12 )
 		
 		#Disable SSL validation (usually a BAD thing... but this is a LAB)
 		[System.Net.ServicePointManager]::ServerCertificateValidationCallback = {$true}
