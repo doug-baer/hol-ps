@@ -8,7 +8,7 @@
 .DESCRIPTION	Check vPod configuration and remediate some misconfigurations
 
 .NOTES				Requires PowerCLI -- tested with v6.0u1
-							Version 1.0 - 24 Februrary 2016
+							Version 1.01 - 24 Februrary 2016
  
 .EXAMPLE			.\vPodChecker.ps1
 
@@ -60,15 +60,16 @@ $ExtraCertDetails = $false
 
 ##############################################################################
 
-#Load the VMware PowerCLI tools ... need to revise this for PowerCLI 6.0+
+#Load the VMware PowerCLI tools - no PowerCLI is fatal. 
 Try {
-	Add-PSSnapin VMware.VimAutomation.Core -ErrorAction 1
-	Add-PSSnapin VMware.VimAutomation.License -ErrorAction 1	
+	#For PowerCLI v6.x
+	$PowerCliInit = 'C:\Program Files (x86)\VMware\Infrastructure\vSphere PowerCLI\Scripts\Initialize-PowerCLIEnvironment.ps1'
+	. $PowerCliInit
 } 
 Catch {
 	Write-Host "No PowerCLI found, unable to continue."
-#	Exit
-}
+	Break
+} 
 
 #Disable SSL certificate validation checks... it's a Lab!
 $scvc = [System.Net.ServicePointManager]::ServerCertificateValidationCallback
