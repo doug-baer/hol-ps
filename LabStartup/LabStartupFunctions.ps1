@@ -194,7 +194,7 @@ Function Connect-Restart-vCenter ( [array]$vCenters, [REF]$maxMins ) {
 			If ( $currentRunningMinutes -gt $vcBootMinutes ) {
 				If ( $VCrestarted -eq $false ) {  # try restarting vCenter to fix the issue
 					Write-Output "Restarting vCenter $vcserver" 
-					Restart-VC $vcserver ([REF]$VCrestarted)
+					Restart-VC $entry ([REF]$VCrestarted)
 					If ($VCrestarted -eq "success") { 
 						$VCstartTime = $(Get-Date)  # record the reboot for this VC
 						# add more time before fail due to VC reboot
@@ -243,8 +243,9 @@ Function Connect-VC ([string]$server, [string]$username, [string]$password, [REF
 	}
 } #End Connect-VC
 
-Function Restart-VC ([string]$server, [REF]$result){
-	If ($server.Contains("vcsa") ) {
+Function Restart-VC ([string]$entry, [REF]$result){
+	($server,$type) = $entry.Split(":")
+	If ( $type -eq "linux" ) {
 		# reboot Platform Services Controller first if present
 		$psc = 'psc-01a.corp.local'
 		$pingResult = ''
@@ -262,13 +263,13 @@ Function Restart-VC ([string]$server, [REF]$result){
 				} Until ($pingResult -eq "success")
 			}
 		}
-		# now reboot vcsa-01a
+		# now reboot vCenter appliance
 		Write-Host "Trying vCenter appliance reboot..."
 		$lcmd = "init 6 2>&1"
 		$msg = Invoke-Plink -remoteHost $server -login $linuxuser -passwd $linuxpassword -command $lcmd
 		If ( $msg -eq $null ) { $result.Value = "success" }
 		Else { $result.Value = "fail" }
-	} Else {
+	} ElseIf ( $type -eq "windows") {
 		# try Windows
 		Write-Host "Trying Windows vCenter reboot..."
 		$wresult = ""
