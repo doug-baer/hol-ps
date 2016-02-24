@@ -104,7 +104,7 @@ $ESXiHosts = @(
 	'esx-02a.corp.local:22'
 )
 
-# FreeNAS NFS datastore names in vCenter
+# FreeNAS datastore names in vCenter
 $datastores = @(
 	'stga-01a.corp.local:ds-site-a-nfs01'
 )
