@@ -56,6 +56,13 @@ Set-Variable col2 -value 105 -option Constant
 Set-Variable col3 -value 200 -option Constant
 Set-Variable col4 -value 295 -option Constant
 
+$MainFormWidth = $col4 + $BUTTON_WIDTH + 20 # 390 for all
+$MainFormHeight = $row4 + $BUTTON_HEIGHT + 50 # 335 for all
+
+# the value of 20 is the offset from the edge
+# the bottom gets an extra 30 for the height of the status bar + 10 extra
+
+
 ########################################################################
 
 function DisablePrevious { 
@@ -144,6 +151,20 @@ function DisplayModuleSwitcherForm {
 	$gbModule14 = New-Object System.Windows.Forms.GroupBox
 	$m14Start = New-Object System.Windows.Forms.Button
 	$StartButtons.add("Start14",$m14Start)
+	
+	$gbModule15 = New-Object System.Windows.Forms.GroupBox
+	$m15Start = New-Object System.Windows.Forms.Button
+	$StartButtons.add("Start15",$m15Start)
+	
+	$gbModule16 = New-Object System.Windows.Forms.GroupBox
+	$m16Start = New-Object System.Windows.Forms.Button
+	$StartButtons.add("Start16",$m16Start)
+	
+	$gbModule17 = New-Object System.Windows.Forms.GroupBox
+	$m17Start = New-Object System.Windows.Forms.Button
+	$StartButtons.add("Start17",$m17Start)
+
+
 	
 	
 	########################################################################
@@ -374,7 +395,487 @@ function DisplayModuleSwitcherForm {
 	
 	$gbModule5.Controls.Add($m5Start)
 	$moduleSwitcherForm.Controls.Add($gbModule5)
+
+	########################################################################
+	### Module 6 Group Box
 	
+	$gbModule6.Name = "gbModule6"
+	$gbModule6.Text = "Module 6"
+	$System_Drawing_Size = New-Object System.Drawing.Size
+	$System_Drawing_Size.Width = $GROUP_WIDTH
+	$System_Drawing_Size.Height = $GROUP_HEIGHT
+	$gbModule6.Size = $System_Drawing_Size
+	$System_Drawing_Point = New-Object System.Drawing.Point
+	$System_Drawing_Point.X = $col1
+	$System_Drawing_Point.Y = $row2
+	$gbModule6.Location = $System_Drawing_Point
+	$gbModule6.TabStop = $False
+	$gbModule6.TabIndex = 7
+	$gbModule6.DataBindings.DefaultDataSourceUpdateMode = 0
+	
+	
+	$m6Start.TabIndex = 8
+	$m6Start.Name = "m_5_Start"
+	$System_Drawing_Size = New-Object System.Drawing.Size
+	$System_Drawing_Size.Width = $BUTTON_WIDTH
+	$System_Drawing_Size.Height = $BUTTON_HEIGHT
+	$m6Start.Size = $System_Drawing_Size
+	$m6Start.UseVisualStyleBackColor = $True
+	
+	$m6Start.Text = "Start"
+	
+	$System_Drawing_Point = New-Object System.Drawing.Point
+	$System_Drawing_Point.X = $BUTTON_OFFSET_X
+	$System_Drawing_Point.Y = $BUTTON_OFFSET_Y
+	$m6Start.Location = $System_Drawing_Point
+	$m6Start.DataBindings.DefaultDataSourceUpdateMode = 0
+	$m6Start.add_Click($mXStart_OnClick)
+	
+	$gbModule6.Controls.Add($m6Start)
+	$moduleSwitcherForm.Controls.Add($gbModule6)
+	
+	########################################################################
+	### Module 7 Group Box
+	
+	$gbModule7.Name = "gbModule7"
+	$gbModule7.Text = "Module 7"
+	$System_Drawing_Size = New-Object System.Drawing.Size
+	$System_Drawing_Size.Width = $GROUP_WIDTH
+	$System_Drawing_Size.Height = $GROUP_HEIGHT
+	$gbModule7.Size = $System_Drawing_Size
+	$System_Drawing_Point = New-Object System.Drawing.Point
+	$System_Drawing_Point.X = $col2
+	$System_Drawing_Point.Y = $row2
+	$gbModule7.Location = $System_Drawing_Point
+	$gbModule7.TabStop = $False
+	$gbModule7.TabIndex = 0
+	$gbModule7.DataBindings.DefaultDataSourceUpdateMode = 0
+	
+	
+	$m7Start.TabIndex = 0
+	$m7Start.Name = "m_7_Start"
+	$System_Drawing_Size = New-Object System.Drawing.Size
+	$System_Drawing_Size.Width = $BUTTON_WIDTH
+	$System_Drawing_Size.Height = $BUTTON_HEIGHT
+	$m7Start.Size = $System_Drawing_Size
+	$m7Start.UseVisualStyleBackColor = $True
+	
+	$m7Start.Text = "Start"
+	
+	$System_Drawing_Point = New-Object System.Drawing.Point
+	$System_Drawing_Point.X = $BUTTON_OFFSET_X
+	$System_Drawing_Point.Y = $BUTTON_OFFSET_Y
+	$m7Start.Location = $System_Drawing_Point
+	$m7Start.DataBindings.DefaultDataSourceUpdateMode = 0
+	$m7Start.add_Click($mXStart_OnClick)
+	
+	$gbModule7.Controls.Add($m7Start)
+	$moduleSwitcherForm.Controls.Add($gbModule7)
+	
+	########################################################################
+
+
+	########################################################################
+	### Module 8 Group Box
+	
+	$gbModule8.Name = "gbModule8"
+	$gbModule8.Text = "Module 8"
+	$System_Drawing_Size = New-Object System.Drawing.Size
+	$System_Drawing_Size.Width = $GROUP_WIDTH
+	$System_Drawing_Size.Height = $GROUP_HEIGHT
+	$gbModule8.Size = $System_Drawing_Size
+	$System_Drawing_Point = New-Object System.Drawing.Point
+	$System_Drawing_Point.X = $col3
+	$System_Drawing_Point.Y = $row2
+	$gbModule8.Location = $System_Drawing_Point
+	$gbModule8.TabStop = $False
+	$gbModule8.TabIndex = 0
+	$gbModule8.DataBindings.DefaultDataSourceUpdateMode = 0
+	
+	
+	$m8Start.TabIndex = 0
+	$m8Start.Name = "m_8_Start"
+	$System_Drawing_Size = New-Object System.Drawing.Size
+	$System_Drawing_Size.Width = $BUTTON_WIDTH
+	$System_Drawing_Size.Height = $BUTTON_HEIGHT
+	$m8Start.Size = $System_Drawing_Size
+	$m8Start.UseVisualStyleBackColor = $True
+	
+	$m8Start.Text = "Start"
+	
+	$System_Drawing_Point = New-Object System.Drawing.Point
+	$System_Drawing_Point.X = $BUTTON_OFFSET_X
+	$System_Drawing_Point.Y = $BUTTON_OFFSET_Y
+	$m8Start.Location = $System_Drawing_Point
+	$m8Start.DataBindings.DefaultDataSourceUpdateMode = 0
+	$m8Start.add_Click($mXStart_OnClick)
+	
+	$gbModule8.Controls.Add($m8Start)
+	$moduleSwitcherForm.Controls.Add($gbModule8)
+	
+	########################################################################
+
+	########################################################################
+	### Module 9 Group Box
+	
+	$gbModule9.Name = "gbModule9"
+	$gbModule9.Text = "Module 9"
+	$System_Drawing_Size = New-Object System.Drawing.Size
+	$System_Drawing_Size.Width = $GROUP_WIDTH
+	$System_Drawing_Size.Height = $GROUP_HEIGHT
+	$gbModule9.Size = $System_Drawing_Size
+	$System_Drawing_Point = New-Object System.Drawing.Point
+	$System_Drawing_Point.X = $col4
+	$System_Drawing_Point.Y = $row2
+	$gbModule9.Location = $System_Drawing_Point
+	$gbModule9.TabStop = $False
+	$gbModule9.TabIndex = 0
+	$gbModule9.DataBindings.DefaultDataSourceUpdateMode = 0
+	
+	
+	$m9Start.TabIndex = 0
+	$m9Start.Name = "m_9_Start"
+	$System_Drawing_Size = New-Object System.Drawing.Size
+	$System_Drawing_Size.Width = $BUTTON_WIDTH
+	$System_Drawing_Size.Height = $BUTTON_HEIGHT
+	$m9Start.Size = $System_Drawing_Size
+	$m9Start.UseVisualStyleBackColor = $True
+	
+	$m9Start.Text = "Start"
+	
+	$System_Drawing_Point = New-Object System.Drawing.Point
+	$System_Drawing_Point.X = $BUTTON_OFFSET_X
+	$System_Drawing_Point.Y = $BUTTON_OFFSET_Y
+	$m9Start.Location = $System_Drawing_Point
+	$m9Start.DataBindings.DefaultDataSourceUpdateMode = 0
+	$m9Start.add_Click($mXStart_OnClick)
+	
+	$gbModule9.Controls.Add($m9Start)
+	$moduleSwitcherForm.Controls.Add($gbModule9)
+	
+	########################################################################
+
+	########################################################################
+	### Module 10 Group Box
+	
+	$gbModule10.Name = "gbModule10"
+	$gbModule10.Text = "Module 10"
+	$System_Drawing_Size = New-Object System.Drawing.Size
+	$System_Drawing_Size.Width = $GROUP_WIDTH
+	$System_Drawing_Size.Height = $GROUP_HEIGHT
+	$gbModule10.Size = $System_Drawing_Size
+	$System_Drawing_Point = New-Object System.Drawing.Point
+	$System_Drawing_Point.X = $col1
+	$System_Drawing_Point.Y = $row3
+	$gbModule10.Location = $System_Drawing_Point
+	$gbModule10.TabStop = $False
+	$gbModule10.TabIndex = 0
+	$gbModule10.DataBindings.DefaultDataSourceUpdateMode = 0
+	
+	
+	$m10Start.TabIndex = 0
+	$m10Start.Name = "m_10_Start"
+	$System_Drawing_Size = New-Object System.Drawing.Size
+	$System_Drawing_Size.Width = $BUTTON_WIDTH
+	$System_Drawing_Size.Height = $BUTTON_HEIGHT
+	$m10Start.Size = $System_Drawing_Size
+	$m10Start.UseVisualStyleBackColor = $True
+	
+	$m10Start.Text = "Start"
+	
+	$System_Drawing_Point = New-Object System.Drawing.Point
+	$System_Drawing_Point.X = $BUTTON_OFFSET_X
+	$System_Drawing_Point.Y = $BUTTON_OFFSET_Y
+	$m10Start.Location = $System_Drawing_Point
+	$m10Start.DataBindings.DefaultDataSourceUpdateMode = 0
+	$m10Start.add_Click($mXStart_OnClick)
+	
+	$gbModule10.Controls.Add($m10Start)
+	$moduleSwitcherForm.Controls.Add($gbModule10)
+	
+	########################################################################
+
+	########################################################################
+	### Module 11 Group Box
+	
+	$gbModule11.Name = "gbModule11"
+	$gbModule11.Text = "Module 11"
+	$System_Drawing_Size = New-Object System.Drawing.Size
+	$System_Drawing_Size.Width = $GROUP_WIDTH
+	$System_Drawing_Size.Height = $GROUP_HEIGHT
+	$gbModule11.Size = $System_Drawing_Size
+	$System_Drawing_Point = New-Object System.Drawing.Point
+	$System_Drawing_Point.X = $col2
+	$System_Drawing_Point.Y = $row3
+	$gbModule11.Location = $System_Drawing_Point
+	$gbModule11.TabStop = $False
+	$gbModule11.TabIndex = 0
+	$gbModule11.DataBindings.DefaultDataSourceUpdateMode = 0
+	
+	
+	$m11Start.TabIndex = 0
+	$m11Start.Name = "m_11_Start"
+	$System_Drawing_Size = New-Object System.Drawing.Size
+	$System_Drawing_Size.Width = $BUTTON_WIDTH
+	$System_Drawing_Size.Height = $BUTTON_HEIGHT
+	$m11Start.Size = $System_Drawing_Size
+	$m11Start.UseVisualStyleBackColor = $True
+	
+	$m11Start.Text = "Start"
+	
+	$System_Drawing_Point = New-Object System.Drawing.Point
+	$System_Drawing_Point.X = $BUTTON_OFFSET_X
+	$System_Drawing_Point.Y = $BUTTON_OFFSET_Y
+	$m11Start.Location = $System_Drawing_Point
+	$m11Start.DataBindings.DefaultDataSourceUpdateMode = 0
+	$m11Start.add_Click($mXStart_OnClick)
+	
+	$gbModule11.Controls.Add($m11Start)
+	$moduleSwitcherForm.Controls.Add($gbModule11)
+	
+	########################################################################
+
+	########################################################################
+	### Module 12 Group Box
+	
+	$gbModule12.Name = "gbModule12"
+	$gbModule12.Text = "Module 12"
+	$System_Drawing_Size = New-Object System.Drawing.Size
+	$System_Drawing_Size.Width = $GROUP_WIDTH
+	$System_Drawing_Size.Height = $GROUP_HEIGHT
+	$gbModule12.Size = $System_Drawing_Size
+	$System_Drawing_Point = New-Object System.Drawing.Point
+	$System_Drawing_Point.X = $col3
+	$System_Drawing_Point.Y = $row3
+	$gbModule12.Location = $System_Drawing_Point
+	$gbModule12.TabStop = $False
+	$gbModule12.TabIndex = 0
+	$gbModule12.DataBindings.DefaultDataSourceUpdateMode = 0
+	
+	
+	$m12Start.TabIndex = 0
+	$m12Start.Name = "m_12_Start"
+	$System_Drawing_Size = New-Object System.Drawing.Size
+	$System_Drawing_Size.Width = $BUTTON_WIDTH
+	$System_Drawing_Size.Height = $BUTTON_HEIGHT
+	$m12Start.Size = $System_Drawing_Size
+	$m12Start.UseVisualStyleBackColor = $True
+	
+	$m12Start.Text = "Start"
+	
+	$System_Drawing_Point = New-Object System.Drawing.Point
+	$System_Drawing_Point.X = $BUTTON_OFFSET_X
+	$System_Drawing_Point.Y = $BUTTON_OFFSET_Y
+	$m12Start.Location = $System_Drawing_Point
+	$m12Start.DataBindings.DefaultDataSourceUpdateMode = 0
+	$m12Start.add_Click($mXStart_OnClick)
+	
+	$gbModule12.Controls.Add($m12Start)
+	$moduleSwitcherForm.Controls.Add($gbModule12)
+	
+	########################################################################
+
+	########################################################################
+	### Module 13 Group Box
+	
+	$gbModule13.Name = "gbModule13"
+	$gbModule13.Text = "Module 13"
+	$System_Drawing_Size = New-Object System.Drawing.Size
+	$System_Drawing_Size.Width = $GROUP_WIDTH
+	$System_Drawing_Size.Height = $GROUP_HEIGHT
+	$gbModule13.Size = $System_Drawing_Size
+	$System_Drawing_Point = New-Object System.Drawing.Point
+	$System_Drawing_Point.X = $col4
+	$System_Drawing_Point.Y = $row3
+	$gbModule13.Location = $System_Drawing_Point
+	$gbModule13.TabStop = $False
+	$gbModule13.TabIndex = 0
+	$gbModule13.DataBindings.DefaultDataSourceUpdateMode = 0
+	
+	
+	$m13Start.TabIndex = 0
+	$m13Start.Name = "m_13_Start"
+	$System_Drawing_Size = New-Object System.Drawing.Size
+	$System_Drawing_Size.Width = $BUTTON_WIDTH
+	$System_Drawing_Size.Height = $BUTTON_HEIGHT
+	$m13Start.Size = $System_Drawing_Size
+	$m13Start.UseVisualStyleBackColor = $True
+	
+	$m13Start.Text = "Start"
+	
+	$System_Drawing_Point = New-Object System.Drawing.Point
+	$System_Drawing_Point.X = $BUTTON_OFFSET_X
+	$System_Drawing_Point.Y = $BUTTON_OFFSET_Y
+	$m13Start.Location = $System_Drawing_Point
+	$m13Start.DataBindings.DefaultDataSourceUpdateMode = 0
+	$m13Start.add_Click($mXStart_OnClick)
+	
+	$gbModule13.Controls.Add($m13Start)
+	$moduleSwitcherForm.Controls.Add($gbModule13)
+	
+	########################################################################
+
+	########################################################################
+	### Module 14 Group Box
+	
+	$gbModule14.Name = "gbModule14"
+	$gbModule14.Text = "Module 14"
+	$System_Drawing_Size = New-Object System.Drawing.Size
+	$System_Drawing_Size.Width = $GROUP_WIDTH
+	$System_Drawing_Size.Height = $GROUP_HEIGHT
+	$gbModule14.Size = $System_Drawing_Size
+	$System_Drawing_Point = New-Object System.Drawing.Point
+	$System_Drawing_Point.X = $col1
+	$System_Drawing_Point.Y = $row4
+	$gbModule14.Location = $System_Drawing_Point
+	$gbModule14.TabStop = $False
+	$gbModule14.TabIndex = 0
+	$gbModule14.DataBindings.DefaultDataSourceUpdateMode = 0
+	
+	
+	$m14Start.TabIndex = 0
+	$m14Start.Name = "m_14_Start"
+	$System_Drawing_Size = New-Object System.Drawing.Size
+	$System_Drawing_Size.Width = $BUTTON_WIDTH
+	$System_Drawing_Size.Height = $BUTTON_HEIGHT
+	$m14Start.Size = $System_Drawing_Size
+	$m14Start.UseVisualStyleBackColor = $True
+	
+	$m14Start.Text = "Start"
+	
+	$System_Drawing_Point = New-Object System.Drawing.Point
+	$System_Drawing_Point.X = $BUTTON_OFFSET_X
+	$System_Drawing_Point.Y = $BUTTON_OFFSET_Y
+	$m14Start.Location = $System_Drawing_Point
+	$m14Start.DataBindings.DefaultDataSourceUpdateMode = 0
+	$m14Start.add_Click($mXStart_OnClick)
+	
+	$gbModule14.Controls.Add($m14Start)
+	$moduleSwitcherForm.Controls.Add($gbModule14)
+	
+	########################################################################
+
+	########################################################################
+	### Module 15 Group Box
+	
+	$gbModule15.Name = "gbModule15"
+	$gbModule15.Text = "Module 15"
+	$System_Drawing_Size = New-Object System.Drawing.Size
+	$System_Drawing_Size.Width = $GROUP_WIDTH
+	$System_Drawing_Size.Height = $GROUP_HEIGHT
+	$gbModule15.Size = $System_Drawing_Size
+	$System_Drawing_Point = New-Object System.Drawing.Point
+	$System_Drawing_Point.X = $col2
+	$System_Drawing_Point.Y = $row4
+	$gbModule15.Location = $System_Drawing_Point
+	$gbModule15.TabStop = $False
+	$gbModule15.TabIndex = 0
+	$gbModule15.DataBindings.DefaultDataSourceUpdateMode = 0
+	
+	
+	$m15Start.TabIndex = 0
+	$m15Start.Name = "m_15_Start"
+	$System_Drawing_Size = New-Object System.Drawing.Size
+	$System_Drawing_Size.Width = $BUTTON_WIDTH
+	$System_Drawing_Size.Height = $BUTTON_HEIGHT
+	$m15Start.Size = $System_Drawing_Size
+	$m15Start.UseVisualStyleBackColor = $True
+	
+	$m15Start.Text = "Start"
+	
+	$System_Drawing_Point = New-Object System.Drawing.Point
+	$System_Drawing_Point.X = $BUTTON_OFFSET_X
+	$System_Drawing_Point.Y = $BUTTON_OFFSET_Y
+	$m15Start.Location = $System_Drawing_Point
+	$m15Start.DataBindings.DefaultDataSourceUpdateMode = 0
+	$m15Start.add_Click($mXStart_OnClick)
+	
+	$gbModule15.Controls.Add($m15Start)
+	$moduleSwitcherForm.Controls.Add($gbModule15)
+
+	########################################################################
+	### Module 16 Group Box
+	
+	$gbModule16.Name = "gbModule16"
+	$gbModule16.Text = "Module 16"
+	$System_Drawing_Size = New-Object System.Drawing.Size
+	$System_Drawing_Size.Width = $GROUP_WIDTH
+	$System_Drawing_Size.Height = $GROUP_HEIGHT
+	$gbModule16.Size = $System_Drawing_Size
+	$System_Drawing_Point = New-Object System.Drawing.Point
+	$System_Drawing_Point.X = $col3
+	$System_Drawing_Point.Y = $row4
+	$gbModule16.Location = $System_Drawing_Point
+	$gbModule16.TabStop = $False
+	$gbModule16.TabIndex = 0
+	$gbModule16.DataBindings.DefaultDataSourceUpdateMode = 0
+	
+	
+	$m16Start.TabIndex = 0
+	$m16Start.Name = "m_16_Start"
+	$System_Drawing_Size = New-Object System.Drawing.Size
+	$System_Drawing_Size.Width = $BUTTON_WIDTH
+	$System_Drawing_Size.Height = $BUTTON_HEIGHT
+	$m16Start.Size = $System_Drawing_Size
+	$m16Start.UseVisualStyleBackColor = $True
+	
+	$m16Start.Text = "Start"
+	
+	$System_Drawing_Point = New-Object System.Drawing.Point
+	$System_Drawing_Point.X = $BUTTON_OFFSET_X
+	$System_Drawing_Point.Y = $BUTTON_OFFSET_Y
+	$m16Start.Location = $System_Drawing_Point
+	$m16Start.DataBindings.DefaultDataSourceUpdateMode = 0
+	$m16Start.add_Click($mXStart_OnClick)
+	
+	$gbModule16.Controls.Add($m16Start)
+	$moduleSwitcherForm.Controls.Add($gbModule16)
+	
+	########################################################################
+
+	########################################################################
+	### Module 17 Group Box
+	
+	$gbModule17.Name = "gbModule17"
+	$gbModule17.Text = "Module 17"
+	$System_Drawing_Size = New-Object System.Drawing.Size
+	$System_Drawing_Size.Width = $GROUP_WIDTH
+	$System_Drawing_Size.Height = $GROUP_HEIGHT
+	$gbModule17.Size = $System_Drawing_Size
+	$System_Drawing_Point = New-Object System.Drawing.Point
+	$System_Drawing_Point.X = $col4
+	$System_Drawing_Point.Y = $row4
+	$gbModule17.Location = $System_Drawing_Point
+	$gbModule17.TabStop = $False
+	$gbModule17.TabIndex = 0
+	$gbModule17.DataBindings.DefaultDataSourceUpdateMode = 0
+	
+	
+	$m17Start.TabIndex = 0
+	$m17Start.Name = "m_17_Start"
+	$System_Drawing_Size = New-Object System.Drawing.Size
+	$System_Drawing_Size.Width = $BUTTON_WIDTH
+	$System_Drawing_Size.Height = $BUTTON_HEIGHT
+	$m17Start.Size = $System_Drawing_Size
+	$m17Start.UseVisualStyleBackColor = $True
+	
+	$m17Start.Text = "Start"
+	
+	$System_Drawing_Point = New-Object System.Drawing.Point
+	$System_Drawing_Point.X = $BUTTON_OFFSET_X
+	$System_Drawing_Point.Y = $BUTTON_OFFSET_Y
+	$m17Start.Location = $System_Drawing_Point
+	$m17Start.DataBindings.DefaultDataSourceUpdateMode = 0
+	$m17Start.add_Click($mXStart_OnClick)
+	
+	$gbModule17.Controls.Add($m17Start)
+	$moduleSwitcherForm.Controls.Add($gbModule17)
+	
+	########################################################################
+
+
+	########################################################################
+	########################################################################
 	########################################################################
 		
 	#Save the initial state of the form
