@@ -197,7 +197,7 @@ function DisplayModuleSwitcherForm {
 	for( $i=2 ; $i -le ($numbuttons + 1) ; $i++ ) {
 		Set-Variable "gbModule$i" -value $(New-Object System.Windows.Forms.GroupBox)
 		Set-Variable $("m" + $i + "Start") -value $(New-Object System.Windows.Forms.Button)
-		$StartButtons.add("Start$i",$(Get-Variable $("m" + $i + "Start" )))
+		$StartButtons.Add( "Start$i",(Get-Variable $("m" + $i + "Start" )).Value )
 		
 		########################################################################
 		### Module X Group Boxes and buttons
