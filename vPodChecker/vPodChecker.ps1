@@ -8,7 +8,7 @@
 .DESCRIPTION	Check vPod configuration and remediate some misconfigurations
 
 .NOTES				Requires PowerCLI -- tested with v6.0u1
-							Version 1.01 - 24 Februrary 2016
+							Version 1.02 - 3 March 2016
  
 .EXAMPLE			.\vPodChecker.ps1
 
