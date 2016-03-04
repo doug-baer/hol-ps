@@ -131,35 +131,35 @@ $sslReport = @()
 
 foreach( $url in $urlsToTest ) {
 
-	If( $url -like "https*" ) {
+	if( $url -like "https*" ) {
 		#write-host $url
 		$h = [regex]::Replace($url, "https://([a-z\.0-9\-]+).*", '$1')
-		If( ($url.Split(':') | Measure-Object).Count -gt 2 ) {
+		if( ($url.Split(':') | Measure-Object).Count -gt 2 ) {
 			$p = [regex]::Replace($url, "https://[a-z\.0-9\-]+\:(\d+).*", '$1')
-		} Else { $p =	443 }
+		} else { $p =	443 }
 		#Write-Host $h on port $p
 
-		If( $ExtraCertDetails ) {
+		if( $ExtraCertDetails ) {
 			$item = "" | select HostName, PortNum, CertName, Thumbprint, Issuer, EffectiveDate, ExpiryDate, DaysToExpire
-		} Else {
+		} else {
 			$item = "" | select HostName, PortNum, CertName, ExpiryDate, DaysToExpire, Issuer
 		}
 
 		$item.HostName = $h
 		$item.PortNum = $p
 
-		If (Test-TcpPort $h $p ) {
+		if( Test-TcpPort $h $p ) {
 			#Get the certificate from the host
 			$wr = [Net.WebRequest]::Create("https://$h" + ':' + $p)
 		
 			#The following request usually fails for one reason or another:
 			# untrusted (self-signed) cert or untrusted root CA are most common...
 			# we just want the cert info, so it usually doesn't matter
-			Try { 
+			try {
 				$response = $wr.GetResponse() 
 				#This sometimes results in an empty certificate... probably due to a redirection
-				If( $wr.ServicePoint.Certificate ) {
-					If( $ExtraCertDetails ) {
+				if( $wr.ServicePoint.Certificate ) {
+					if( $ExtraCertDetails ) {
 						$t = $wr.ServicePoint.Certificate.GetCertHashString()
 						$SslThumbprint = ([regex]::matches($t, '.{1,2}') | %{$_.value}) -join ':'
 						$item.Thumbprint = $SslThumbprint
@@ -170,17 +170,19 @@ foreach( $url in $urlsToTest ) {
 					$item.Issuer = $wr.ServicePoint.Certificate.Issuer
 					$item.ExpiryDate = $wr.ServicePoint.Certificate.GetExpirationDateString()
 					$validTime = New-Timespan -End $item.ExpiryDate -Start $minValidDate
-					If( $validTime.Days -lt 0 ) {
+					if( $validTime.Days -lt 0 ) {
 						$item.DaysToExpire = "$validTime.Days - *** EXPIRES EARLY *** "
-					} Else {
+					} else {
 						$item.DaysToExpire = $validTime.Days
 					}
 				}
 			}
-			Catch{
-				Write-Host "Unable to get certificate for $h on $port"
+			catch {
+				$Exception = $Error[0].Exception.InnerException
+				Write-Host "Unable to get certificate for $h on $p"
+				Write-Host $Exception
 			}
-			Finally {
+			finally {
 				if( $response ) {
 					$response.Close()
 					Remove-Variable response
