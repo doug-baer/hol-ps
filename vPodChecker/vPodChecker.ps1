@@ -8,7 +8,7 @@
 .DESCRIPTION	Check vPod configuration and remediate some misconfigurations
 
 .NOTES				Requires PowerCLI -- tested with v6.0u1
-							Version 1.02 - 3 March 2016
+							Version 1.1 - 7 March 2016
  
 .EXAMPLE			.\vPodChecker.ps1
 
@@ -57,6 +57,18 @@ $result = ''
 $minValidDate = [datetime]"12/31/2016"
 $ExtraCertDetails = $false
 
+#The NTP server we want configured
+$ntpServer = '192.168.100.1'
+
+
+#Automatically Remediate?
+if($args[0] -eq '-Fix') {
+	Write-Host -ForegroundColor Green "*** Remediation Active ***"
+	$autoRemediate = $true
+} else {
+	Write-Host -ForegroundColor Yellow "*** Reporting Only ***"
+	$autoRemediate = $false
+}
 
 ##############################################################################
 
@@ -180,7 +192,7 @@ foreach( $url in $urlsToTest ) {
 			catch {
 				$Exception = $Error[0].Exception.InnerException
 				Write-Host "Unable to get certificate for $h on $p"
-				Write-Host $Exception
+				Write-Host "Exception: $Exception"
 			}
 			finally {
 				if( $response ) {
@@ -212,7 +224,26 @@ foreach ($h in $allhosts) {
 	$row.NTPDRUNNING =	$ntpData.Running
 	$row.NTPDPOLICY	=	$ntpData.Policy
 	$row.NTPSERVER	 =	Get-VMHostNtpServer -VMHost $h
+	
+	if( ($row.NTPSERVER -ne $ntpServer) -and $autoRemediate ) {
+		Write-Host -ForegroundColor Green "Correcting NTP server"
+		Add-VMhostNtpserver -vmhost $h -ntpserver $ntpServer
+		Get-VMHostFirewallException  -vmh $h | where {$_.name -like "*NTP Client*" } | Set-VMHostFirewallException -Enabled:$true
+	}
+	
+	if( ($row.NTPDPOLICY -ne 'on') -and $autoRemediate ) {
+		Write-Host -ForegroundColor Green "Correcting NTP server policy"
+		Get-VMHostService -vmhost $h | Where {$_.key -eq "ntpd"} | Start-VMHostService
+		Get-VMHostService -vmhost $h | Where {$_.key -eq "ntpd"} | Set-VMHostService -policy 'on'
+	}
+
+	$ntpData = Get-VMHostService -VMHost $h	| where { $_.key -eq 'ntpd' }
+	$row.NTPDRUNNING = "$($ntpData.Running) (was $($row.NTPDRUNNING))"
+	$row.NTPDPOLICY	=	"$($ntpData.Policy) (was $($row.NTPDPOLICY))"
+	$row.NTPSERVER	 =	"$(Get-VMHostNtpServer -VMHost $h) (was $($row.NTPSERVER))"
+
 	$hostReport += $row
+	
 }
 $hostReport | ft -auto
 Remove-Variable row
@@ -237,21 +268,27 @@ foreach ($vm in $allvms) {
 	if( $currentUuidActionValue -eq "keep" ) {
 		$row.UUIDACTION = $currentUuidActionValue
 	} elseif(! $currentUuidActionValue ) {
-		try {
-			New-AdvancedSetting -en $vm -name uuid.action -value 'keep' -Confirm:$false -ErrorAction 1 | Out-Null
-			$row.UUIDACTION = "was BLANK"
-		} catch {
-			Write-Host -Fore Red	"Failed to create UUID.action on $($vm.name)"
-			$row.UUIDACTION = "FIXMANUAL"
+		if( $autoRemediate ) {
+			Write-Host -ForegroundColor Green "Correcting vVM UUID.action"
+			try {
+				New-AdvancedSetting -en $vm -name uuid.action -value 'keep' -Confirm:$false -ErrorAction 1 | Out-Null
+				$row.UUIDACTION = "was BLANK"
+			} catch {
+				Write-Host -Fore Red	"Failed to create UUID.action on $($vm.name)"
+				$row.UUIDACTION = "FIXMANUAL"
+			}
 		}
 	} else {
-		try {
-			Set-AdvancedSetting $currentUuidAction -value 'keep' -Confirm:$false -ErrorAction 1
-			$row.UUIDACTION = "was $currentUuidActionValue"
-		} catch {
-			Write-Host -Fore Red	"Failed to set UUID.action on $($vm.name)"
-			Write-Host -Fore Red	"	value remains: $((Get-AdvancedSetting -en $vm -name uuid.action).value)"
-			$row.UUIDACTION = "FIXMANUAL"
+		if( $autoRemediate ) {
+			Write-Host -ForegroundColor Green "Correcting vVM typematic setting"
+			try {
+				Set-AdvancedSetting $currentUuidAction -value 'keep' -Confirm:$false -ErrorAction 1
+				$row.UUIDACTION = "was $currentUuidActionValue"
+			} catch {
+				Write-Host -Fore Red	"Failed to set UUID.action on $($vm.name)"
+				Write-Host -Fore Red	"	value remains: $((Get-AdvancedSetting -en $vm -name uuid.action).value)"
+				$row.UUIDACTION = "FIXMANUAL"
+			}
 		}
 	}
 	
@@ -264,22 +301,25 @@ foreach ($vm in $allvms) {
 		if( $currentTypeDelayValue -eq 2000000 ) {
 			$row.TYPEDELAY = $currentTypeDelayValue
 		} elseif(! $currentTypeDelay ) {
-			try {
-				New-AdvancedSetting -en $vm -name keyboard.typematicMinDelay -value 2000000 -Confirm:$false -ErrorAction 1 | Out-Null
-				$row.TYPEDELAY = "was BLANK"
-			} catch {
-				Write-Host -Fore Red	"Failed to create keyboard.typematicMinDelay on $($vm.name)"
-				$row.TYPEDELAY = "FIXMANUAL"
+			if( $autoRemediate ) {
+				try {
+					New-AdvancedSetting -en $vm -name keyboard.typematicMinDelay -value 2000000 -Confirm:$false -ErrorAction 1 | Out-Null
+					$row.TYPEDELAY = "was BLANK"
+				} catch {
+					Write-Host -Fore Red	"Failed to create keyboard.typematicMinDelay on $($vm.name)"
+					$row.TYPEDELAY = "FIXMANUAL"
+				}
 			}
-
 		} else {
-			try {
-				Set-AdvancedSetting $currentTypeDelay -value 2000000 -Confirm:$false -ErrorAction 1
-				$row.TYPEDELAY = "was $currentTypeDelayValue"
-			} catch {
-				Write-Host -Fore Red "Failed to set keyboard.typematicMinDelay on $($vm.name)"
-				Write-Host -Fore Red	"	value remains: $((Get-AdvancedSetting -en $vm -name keyboard.typematicMinDelay).value)"
-				$row.TYPEDELAY = "FIXMANUAL"
+			if( $autoRemediate ) {
+				try {
+					Set-AdvancedSetting $currentTypeDelay -value 2000000 -Confirm:$false -ErrorAction 1
+					$row.TYPEDELAY = "was $currentTypeDelayValue"
+				} catch {
+					Write-Host -Fore Red "Failed to set keyboard.typematicMinDelay on $($vm.name)"
+					Write-Host -Fore Red	"	value remains: $((Get-AdvancedSetting -en $vm -name keyboard.typematicMinDelay).value)"
+					$row.TYPEDELAY = "FIXMANUAL"
+				}
 			}
 		}
 	}
