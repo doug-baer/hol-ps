@@ -7,24 +7,29 @@
 
 .DESCRIPTION	Check vPod configuration and remediate some misconfigurations
 
-.NOTES				Requires PowerCLI -- tested with v6.0u1
-							Version 1.1 - 7 March 2016
+.NOTES				Requires VMware PowerCLI -- tested with v6.0u1
+							Version 1.2 - 8 March 2016
+							Added path portion to URL for certificate retrieval
+							Added TLS 1.2 to permitted security protocols
  
 .EXAMPLE			.\vPodChecker.ps1
 
-.INPUTS				None
+.INPUTS				Manual population of $URLs list below
 
 .OUTPUTS			Interactive: all output is written to console
 
 #>
 
 #####Check SSL certificates on PROVIDED links
-## USER must provide this list based on what is in your pod
-## Start by pulling this array from the labStartup file. We'll filter out non-https links
+## USER must provide this list based on what is in the pod
+## Start by MANUALLY populating this list from the labStartup.ps1 file in the pod 
+## We'll filter out non-https links before testing
 $URLs = @{
 	'https://vcsa-01a.corp.local:9443/vsphere-client/' = 'vSphere Web Client'
+	'https://vcsa-01a.corp.local/vsphere-client/' = 'vSphere Web Client'
 	'http://stga-01a.corp.local/account/login' = 'FreeNAS'
-	'https://psc-01a.corp.local/' = 'Platform'
+	'https://psc-01a.corp.local/' = 'Platform' #this one fails with a 503 in some pods (?)
+	'https://psc-01a.corp.local/websso/' = 'Platform'
 	}
 
 $urlsToTest = $URLs.Keys | where { $_ -match 'https' } 
@@ -66,7 +71,7 @@ if($args[0] -eq '-Fix') {
 	Write-Host -ForegroundColor Green "*** Remediation Active ***"
 	$autoRemediate = $true
 } else {
-	Write-Host -ForegroundColor Yellow "*** Reporting Only ***"
+	Write-Host "*** Reporting Only ***"
 	$autoRemediate = $false
 }
 
@@ -86,6 +91,11 @@ Catch {
 #Disable SSL certificate validation checks... it's a Lab!
 $scvc = [System.Net.ServicePointManager]::ServerCertificateValidationCallback
 [System.Net.ServicePointManager]::ServerCertificateValidationCallback = {$true}
+
+#Add TLS1.2 to the default (SSLv3 and TLSv1)
+$sp = [System.Net.ServicePointManager]::SecurityProtocol
+[System.Net.ServicePointManager]::SecurityProtocol = ( $sp -bor [System.Net.SecurityProtocolType]::Tls12 )
+
 
 ##############################################################################
 
@@ -144,12 +154,16 @@ $sslReport = @()
 foreach( $url in $urlsToTest ) {
 
 	if( $url -like "https*" ) {
-		#write-host $url
+		#Write-Host $url
 		$h = [regex]::Replace($url, "https://([a-z\.0-9\-]+).*", '$1')
 		if( ($url.Split(':') | Measure-Object).Count -gt 2 ) {
 			$p = [regex]::Replace($url, "https://[a-z\.0-9\-]+\:(\d+).*", '$1')
 		} else { $p =	443 }
 		#Write-Host $h on port $p
+
+		#Capture the path - some services only respond correctly on a specified path
+		$urlpath = [regex]::replace($url, "https://[a-z\.0-9\-]+\:*(\d*)(.*)", '$2')
+
 
 		if( $ExtraCertDetails ) {
 			$item = "" | select HostName, PortNum, CertName, Thumbprint, Issuer, EffectiveDate, ExpiryDate, DaysToExpire
@@ -162,7 +176,8 @@ foreach( $url in $urlsToTest ) {
 
 		if( Test-TcpPort $h $p ) {
 			#Get the certificate from the host
-			$wr = [Net.WebRequest]::Create("https://$h" + ':' + $p)
+			$testurl = "https://$h" + ':' + $p + $urlpath
+			$wr = [Net.WebRequest]::Create($testurl)
 		
 			#The following request usually fails for one reason or another:
 			# untrusted (self-signed) cert or untrusted root CA are most common...
