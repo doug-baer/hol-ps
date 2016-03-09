@@ -58,13 +58,16 @@ Set-Variable col2 -value 105 -option Constant
 Set-Variable col3 -value 200 -option Constant
 Set-Variable col4 -value 295 -option Constant
 
-$MainFormWidth = $col4 + $BUTTON_WIDTH + ($NUM_COLUMNS * 5) # 390 for all
-$MainFormHeight = $row4 + $BUTTON_HEIGHT + 50 # 335 for all
-
 # the value of 20 is the offset from the edge
 # the bottom gets an extra 30 for the height of the status bar + 10 extra
 
-## TODO: Resize panel based on number of Module scripts available
+## Resize panel based on number of Module scripts available
+$MainFormWidth = $col4 + $BUTTON_WIDTH + ($NUM_COLUMNS * 5) # 390 for all
+$numRows = [math]::ceiling($numButtons / $NUM_COLUMNS)
+if( $numRows -lt 5 ) {
+	Write-Host "Setting Form Height to " (Get-Variable "row$numRows").Value
+	$MainFormHeight = (Get-Variable "row$numRows").Value + $BUTTON_HEIGHT + 50
+}
 
 
 ########################################################################
