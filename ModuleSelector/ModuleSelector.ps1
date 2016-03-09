@@ -4,14 +4,14 @@
 
 .DESCRIPTION	
 
-.NOTES				Version 0.9 - 08 March 2016
-							Added Start/Stop button states to call Start/Stop action of Module script
+.NOTES				
+					Version 0.1 - 01 March 2016
  
-.EXAMPLE			.\ModuleSelector.ps1
+.EXAMPLE			.\testPanel.ps1
 
 .INPUTS				Provide scripts with names like "Module02.ps1" in the $ModuleSwitchDir
-							Note the two-digit value in the script names
-							Each provided script should take two parameters: "START" and "STOP"
+						Note the two-digit value in the script names
+						Each provided script should take two parameters: "START" and "STOP"
 
 .OUTPUTS			Scripts are launched in their own PS console
 
@@ -32,7 +32,6 @@ $activeModule = 1
 # Create a hashtable of Start buttons here
 $StartButtons = @{}
 
-#initial values of the form dimensions
 $MainFormWidth = 450
 $MainFormHeight = 500
 
@@ -140,7 +139,13 @@ function DisplayModuleSwitcherForm {
 			if( Test-Path $ScriptPath ) {
 				Start-Process powershell -ArgumentList "-command $ScriptPath $buttonAction"
 				DisablePrevious $thisButton
-				if( $buttonAction -ne 'START' ) { $m2Start.Enabled = $false }
+				if( $buttonAction -ne 'START' ) { 
+					$buttonName = "Start$thisButton"
+					if( $StartButtons.ContainsKey($buttonName) ) {
+						$StartButtons[$buttonName].Enabled = $false
+					}
+					$statusBar1.Text = "No active module"
+				}
 			}
 		}
 		catch {
