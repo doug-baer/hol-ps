@@ -1,19 +1,18 @@
 <#
 
-.SYNOPSIS			Module Switcher panel for HOL vPods.
+.SYNOPSIS			Module Switcher panel for HOL vPods
 
 .DESCRIPTION	
 
-.NOTES				
-					Version 0.1 - 01 March 2016
+.NOTES				Version 1.0 - 09 March 2016
  
-.EXAMPLE			.\testPanel.ps1
+.EXAMPLE			.\ModuleSwitcher.ps1
 
 .INPUTS				Provide scripts with names like "Module02.ps1" in the $ModuleSwitchDir
-						Note the two-digit value in the script names
-						Each provided script should take two parameters: "START" and "STOP"
+							** Note the two-digit value in the script names **
+							Each provided script should take two parameters: "START" and "STOP"
 
-.OUTPUTS			Scripts are launched in their own PS console
+.OUTPUTS			Each script is launched in its own PS console
 
 #>
 
@@ -32,6 +31,7 @@ $activeModule = 1
 # Create a hashtable of Start buttons here
 $StartButtons = @{}
 
+#Initial size of the panel
 $MainFormWidth = 450
 $MainFormHeight = 500
 
@@ -58,14 +58,17 @@ Set-Variable col2 -value 105 -option Constant
 Set-Variable col3 -value 200 -option Constant
 Set-Variable col4 -value 295 -option Constant
 
-$MainFormWidth = $col4 + $BUTTON_WIDTH + 20 # 390 for all
+$MainFormWidth = $col4 + $BUTTON_WIDTH + ($NUM_COLUMNS * 5) # 390 for all
 $MainFormHeight = $row4 + $BUTTON_HEIGHT + 50 # 335 for all
 
 # the value of 20 is the offset from the edge
 # the bottom gets an extra 30 for the height of the status bar + 10 extra
 
+## TODO: Resize panel based on number of Module scripts available
+
 
 ########################################################################
+### Disable previous Module buttons -- no 'rollback' allowed
 
 function DisablePrevious { 
 	PARAM ( [int]$thisModule )
@@ -95,8 +98,8 @@ function DisablePrevious {
 }#End DisablePrevious
 
 
-##
-## Display the main UI form
+########################################################################
+## The function that displays the main UI
 ##
 function DisplayModuleSwitcherForm {
 
@@ -105,23 +108,21 @@ function DisplayModuleSwitcherForm {
 	[reflection.assembly]::loadwithpartialname("System.Windows.Forms") | Out-Null
 
 	$moduleSwitcherForm = New-Object System.Windows.Forms.Form
-		
-	########################################################################
-		
+			
 	$InitialFormWindowState = New-Object System.Windows.Forms.FormWindowState
 	
-	#----------------------------------------------
-	#Event Script Blocks
-	#----------------------------------------------
 	
-	#Example to display a dialog
+	#Example to display a Windows dialog (in case of errors)
 	#	$wshell = New-Object -ComObject Wscript.Shell
 	#	$wshell.Popup("Stop Module 4",0,"Cool!",0x1)
+
+	########################################################################
+	### Define the button events
 	
 	$mXStart_OnClick= 
 	{
-		# General on-click function... need to set module/button number here
-		# unless we can find it via the calling click
+		# General on-click function... get module/button number here
+		# from the calling button's Name
 		$thisButton = [int](($this.Name).Split("_")[1])
 		
 		if( $thisButton -lt 10 ) { 
@@ -159,7 +160,8 @@ function DisplayModuleSwitcherForm {
 		$moduleSwitcherForm.WindowState = $InitialFormWindowState
 	}
 	
-	#----------------------------------------------
+	########################################################################
+	### Build the Form/Panel
 	
 	$moduleSwitcherForm.Text = "ModuleSwitcher Form"
 	$moduleSwitcherForm.Name = "moduleSwitcherForm"
@@ -209,7 +211,9 @@ function DisplayModuleSwitcherForm {
 	$moduleSwitcherForm.Controls.Add($statusBar1)
 	
 	#Corner case - ModuleSwitchDir exists, but no matching scripts
-	if( $numButtons -lt 1 ) { $statusBar1.Text = "No ModuleSwitcher scripts found in $moduleswitchdir" }
+	if( $numButtons -lt 1 ) { 
+		$statusBar1.Text = "No ModuleSwitcher scripts found in $moduleswitchdir" 
+	}
 
 	### GroupBoxes and Buttons
 	for( $i=2 ; $i -le ($numbuttons + 1) ; $i++ ) {
@@ -262,9 +266,7 @@ function DisplayModuleSwitcherForm {
 		$moduleSwitcherForm.Controls.Add((Get-Variable "gbModule$i").Value)
 	}
 
-	########################################################################
-	########################################################################
-	########################################################################
+########################################################################
 		
 	#Save the initial state of the form
 	$InitialFormWindowState = $moduleSwitcherForm.WindowState
@@ -274,6 +276,7 @@ function DisplayModuleSwitcherForm {
 	$moduleSwitcherForm.ShowDialog()| Out-Null
 
 } #End DisplayModuleSwitcherForm
+
 
 #Call the Function
 DisplayModuleSwitcherForm
