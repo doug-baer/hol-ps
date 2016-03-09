@@ -4,7 +4,7 @@
 
 .DESCRIPTION	
 
-.NOTES				Version 1.0 - 09 March 2016
+.NOTES				Version 1.01 - 09 March 2016
  
 .EXAMPLE			.\ModuleSwitcher.ps1
 
@@ -48,12 +48,14 @@ Set-Variable BUTTON_OFFSET_Y -value 20 -option Constant
 
 Set-Variable NUM_COLUMNS -value 4 -option Constant
 
-Set-Variable row1 -value 50 -option Constant
+Set-Variable row1 -value 50  -option Constant
 Set-Variable row2 -value 120 -option Constant
 Set-Variable row3 -value 190 -option Constant
 Set-Variable row4 -value 260 -option Constant
+Set-Variable row5 -value 330 -option Constant
+Set-Variable row6 -value 400 -option Constant
 
-Set-Variable col1 -value 10 -option Constant
+Set-Variable col1 -value 10  -option Constant
 Set-Variable col2 -value 105 -option Constant
 Set-Variable col3 -value 200 -option Constant
 Set-Variable col4 -value 295 -option Constant
@@ -64,10 +66,13 @@ Set-Variable col4 -value 295 -option Constant
 ## Resize panel based on number of Module scripts available
 $MainFormWidth = $col4 + $BUTTON_WIDTH + ($NUM_COLUMNS * 5) # 390 for all
 $numRows = [math]::ceiling($numButtons / $NUM_COLUMNS)
-if( $numRows -lt 5 ) {
-	Write-Host "Setting Form Height to " (Get-Variable "row$numRows").Value
+if( $numRows -lt 7 ) {
+	#Write-Host "Setting Form Height to " (Get-Variable "row$numRows").Value
 	$MainFormHeight = (Get-Variable "row$numRows").Value + $BUTTON_HEIGHT + 50
-}
+} else {
+	Write-Host -ForegroundColor Red "ERROR: That's a lot of modules!"
+	Break
+}	
 
 
 ########################################################################
