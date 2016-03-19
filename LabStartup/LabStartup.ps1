@@ -53,7 +53,7 @@ Write-Output "$startTime beginning LabStartup"
 ##############################################################################
 
 #The SKU of this pod
-$vPodSKU = 'HOL-XXX-1799'
+$vPodSKU = 'HOL-1799'
 
 # Credentials used to login to vCenters
 # vcuser could be "root" if using ESXi host only
@@ -179,9 +179,9 @@ Foreach ($firefoxProfile in $firefoxProfiles) {
 $TMP = $vPodSKU.Split('-')
 Try {
 # the YEAR is the first two characters of the last field as an integer
-	$YEAR = [int]$TMP[2].SubString(0,2)
+	$YEAR = [int]$TMP[$TMP.length - 1].SubString(0,2)
 	# the SKU is the rest of the last field beginning with the third character as an integer (no leading zeroes)
-	$SKU = [int]$TMP[2].SubString(2)
+	$SKU = [int]$TMP[$TMP.length - 1].SubString(2)
 	$IPNET = "192.$YEAR.$SKU"
 }
 Catch {
