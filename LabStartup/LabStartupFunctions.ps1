@@ -40,10 +40,10 @@ Function Start-AutoLab () {
 		Write-Host "Testing $cd\autolab.ps1"
 		If( Test-Path -Path "$cd\autolab.ps1" ) {
 			Write-Host "Executing $cd\autolab.ps1"
-			Write-Progress "Ready: Executing $cd\autolab.ps1" 'AUTOLAB'
+			Write-VpodProgress "Ready: Executing $cd\autolab.ps1" 'AUTOLAB'
 			Start-Process powershell -ArgumentList "-command $cd\autolab.ps1"
 			Write-Host "Finished with $cd\autolab.ps1"
-			Write-Progress "Finished with $cd\autolab.ps1" 'AUTOLAB'
+			Write-VpodProgress "Finished with $cd\autolab.ps1" 'AUTOLAB'
 			Return $TRUE
 		}
 	}
@@ -134,7 +134,7 @@ Function Report-VpodStatus ([string] $newStatus) {
 	$currentStatus = $newStatus
 } #End Report-VpodStatus
 
-Function Write-Progress ([string] $msg, [string] $code) {
+Function Write-VpodProgress ([string] $msg, [string] $code) {
 	$myTime = $(Get-Date)
 	If( $msg -eq 'Ready' ) {
 		$dateCode = "{0:D2}/{1:D2} {2:D2}:{3:D2}" -f $myTime.month,$myTime.day,$myTime.hour,$myTime.minute
@@ -152,7 +152,7 @@ Function Write-Progress ([string] $msg, [string] $code) {
 		Set-Content -Value ([byte[]][char[]] "$dateCode $msg ") -Path $statusFile -Encoding Byte
 	}
 	Report-VpodStatus $code
-} #End Write-Progress
+} #End Write-VpodProgress
 
 
 Function Connect-vCenter ( [array] $vCenters ) {
@@ -338,7 +338,7 @@ Function Start-Nested ( [array] $records ) {
 			}
 			If ($task.State -eq "Error") {
 				# Because we have checked storage, we will not fail the lab but merely note the issue starting the L2 VM or vApp
-				#Write-Progress "FATAL ERROR" 'FAIL-2'  
+				#Write-VpodProgress "FATAL ERROR" 'FAIL-2'  
 				#$currentRunningSeconds = Get-RuntimeSeconds $startTime
 				#$currentRunningMinutes = $currentRunningSeconds / 60
 				#Write-Output $("FAILURE: labStartup ran for {0:N0} minutes and has been terminated."  -f $currentRunningMinutes )
