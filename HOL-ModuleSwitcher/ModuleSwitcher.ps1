@@ -28,10 +28,14 @@ if( Test-Path $ModuleSwitchDir ) {
 #State File - needs to be wiped in lablogoff.ps1
 $activeModuleFile = Join-Path $ModuleSwitchDir 'currentModule.txt'
 
-# Initially, module 1 is the active module
-$activeModule = 1
-Set-Content -Path $activeModuleFile -Value $activeModule
-
+# Initially, module 1 is the active module unless there is a state file
+if( Test-Path $activeModuleFile ) {
+	$activeModule = [int](Get-Content $activeModuleFile) + 0
+	Write-Host "Active Module File found - Active module is $activeModule " $activeModule.GetType()
+} else {
+	$activeModule = 1
+	Set-Content -Path $activeModuleFile -Value $activeModule
+}
 # Create a hashtable of Start buttons here
 $StartButtons = @{}
 
@@ -80,12 +84,19 @@ if( $numRows -lt 5 ) {
 function DisablePrevious { 
 	PARAM ( [int]$thisModule )
 	PROCESS {
-		if( $thisModule -gt $activeModule ) {
-			for($i=$activeModule; $i -lt $thisModule; $i++) {
+		if( $thisModule -eq $activeModule ) { 
+			#this happens if there is a statefile. need to disable ALL previous buttons
+			$startModule = 1 
+		} else { 
+			$startModule = $activeModule
+		}
+		if( $thisModule -ge $activeModule ) {
+			for($i=$startModule; $i -lt $thisModule; $i++) {
 				$buttonName = "Start$i"
 				if( $StartButtons.ContainsKey($buttonName) ) {
 					$StartButtons[$buttonName].Enabled = $false
 				}
+				Write-Host "  disabling $i"
 			}
 			#Change this button's name to "Stop" and enable it
 			$thisButtonName = "Start" + $thisModule
@@ -94,12 +105,13 @@ function DisablePrevious {
 			}
 
 			$activeModule = $thisModule
-			$statusBar1.Text = "Active module: $thisModule"
+			Set-Content -Path $activeModuleFile -Value $activeModule
+			$statusBar1.Text = "Active module: $activeModule"
 
 		} else {
 			#how did we get here?
 			$wshell = New-Object -ComObject Wscript.Shell
-			$wshell.Popup("Attempting to go backwards!",0,"Oops!",0x1)
+			$wshell.Popup("Attempting to go backwards! $activeModule to $thisModule",0,"Oops!",0x1)
 		}
 	}
 }#End DisablePrevious
@@ -223,7 +235,7 @@ function DisplayModuleSwitcherForm {
 	}
 
 	### GroupBoxes and Buttons
-	for( $i=1 ; $i -le ($numbuttons + 1) ; $i++ ) {
+	for( $i=1 ; $i -le $numbuttons ; $i++ ) {
 		Set-Variable "gbModule$i" -value $(New-Object System.Windows.Forms.GroupBox)
 		Set-Variable $("m" + $i + "Start") -value $(New-Object System.Windows.Forms.Button)
 		$StartButtons.Add( "Start$i",(Get-Variable $("m" + $i + "Start" )).Value )
@@ -260,11 +272,13 @@ function DisplayModuleSwitcherForm {
 		(Get-Variable $("m" + $i + "Start")).Value.Size = $System_Drawing_Size
 		(Get-Variable $("m" + $i + "Start")).Value.UseVisualStyleBackColor = $True
 		
+		#Special Case: Module 1 is already active, so can only be Stopped
 		if( $i -eq 1 ) {
 			(Get-Variable $("m" + $i + "Start")).Value.Text = "Stop"
 		} else {
 			(Get-Variable $("m" + $i + "Start")).Value.Text = "Start"
 		}
+		
 		$System_Drawing_Point = New-Object System.Drawing.Point
 		$System_Drawing_Point.X = $BUTTON_OFFSET_X
 		$System_Drawing_Point.Y = $BUTTON_OFFSET_Y
@@ -282,9 +296,11 @@ function DisplayModuleSwitcherForm {
 	$InitialFormWindowState = $moduleSwitcherForm.WindowState
 	#Init the OnLoad event to correct the initial state of the form
 	$moduleSwitcherForm.add_Load($OnLoadForm_StateCorrection)
+	#Disable previous module buttons - based on statefile contents
+	DisablePrevious $activeModule
 	#Show the Form
 	$moduleSwitcherForm.ShowDialog()| Out-Null
-
+	
 } #End DisplayModuleSwitcherForm
 
 
