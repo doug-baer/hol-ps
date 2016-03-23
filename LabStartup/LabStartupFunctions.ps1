@@ -1,5 +1,5 @@
 <#
-	LabStartup Functions - 2015-12-4
+	LabStartup Functions - 2016-03-23
 #>
 
 # Windows vCenter services
@@ -555,7 +555,7 @@ Function LabFail ( [string] $message ) {
 	$currentRunningSeconds = Get-RuntimeSeconds $startTime
 	$currentRunningMinutes = $currentRunningSeconds / 60
 	Write-Output $message
-	Write-Progress "FAIL - TIMEOUT" 'TIMEOUT'
+	Write-VpodProgress "FAIL - TIMEOUT" 'TIMEOUT'
 	Write-Output $("FAILURE: labStartup ran for {0:N0} minutes and has been terminated."  -f $currentRunningMinutes )
 	Exit
 } #End LabFail
@@ -606,7 +606,7 @@ Function Check-Datastore ([string] $dsline, [REF]$result )
 			$result.value = "success"
 		}
 		Catch {
-			Write-Progress "FATAL ERROR" 'FAIL-2'  
+			Write-VpodProgress "FATAL ERROR" 'FAIL-2'  
 			$currentRunningSeconds = Get-RuntimeSeconds $startTime
 			$currentRunningMinutes = $currentRunningSeconds / 60
 			Write-Output $("FAILURE: labStartup ran for {0:N0} minutes and has been terminated."  -f $currentRunningMinutes )
