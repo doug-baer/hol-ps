@@ -4,7 +4,7 @@
 
 .DESCRIPTION	
 
-.NOTES				Version 1.01 - 09 March 2016
+.NOTES				Version 1.1 - 23 March 2016
  
 .EXAMPLE			.\ModuleSwitcher.ps1
 
@@ -25,8 +25,12 @@ if( Test-Path $ModuleSwitchDir ) {
 	exit
 }
 
+#State File - needs to be wiped in lablogoff.ps1
+$activeModuleFile = Join-Path $ModuleSwitchDir 'currentModule.txt'
+
 # Initially, module 1 is the active module
 $activeModule = 1
+Set-Content -Path $activeModuleFile -Value $activeModule
 
 # Create a hashtable of Start buttons here
 $StartButtons = @{}
@@ -48,14 +52,12 @@ Set-Variable BUTTON_OFFSET_Y -value 20 -option Constant
 
 Set-Variable NUM_COLUMNS -value 4 -option Constant
 
-Set-Variable row1 -value 50  -option Constant
+Set-Variable row1 -value 50 -option Constant
 Set-Variable row2 -value 120 -option Constant
 Set-Variable row3 -value 190 -option Constant
 Set-Variable row4 -value 260 -option Constant
-Set-Variable row5 -value 330 -option Constant
-Set-Variable row6 -value 400 -option Constant
 
-Set-Variable col1 -value 10  -option Constant
+Set-Variable col1 -value 10 -option Constant
 Set-Variable col2 -value 105 -option Constant
 Set-Variable col3 -value 200 -option Constant
 Set-Variable col4 -value 295 -option Constant
@@ -66,13 +68,10 @@ Set-Variable col4 -value 295 -option Constant
 ## Resize panel based on number of Module scripts available
 $MainFormWidth = $col4 + $BUTTON_WIDTH + ($NUM_COLUMNS * 5) # 390 for all
 $numRows = [math]::ceiling($numButtons / $NUM_COLUMNS)
-if( $numRows -lt 7 ) {
-	#Write-Host "Setting Form Height to " (Get-Variable "row$numRows").Value
+if( $numRows -lt 5 ) {
+#	Write-Host "Setting Form Height to " (Get-Variable "row$numRows").Value
 	$MainFormHeight = (Get-Variable "row$numRows").Value + $BUTTON_HEIGHT + 50
-} else {
-	Write-Host -ForegroundColor Red "ERROR: That's a lot of modules!"
-	Break
-}	
+}
 
 
 ########################################################################
@@ -205,7 +204,7 @@ function DisplayModuleSwitcherForm {
 	
 	$statusBar1 = New-Object System.Windows.Forms.StatusBar
 	$statusBar1.Name = "statusBar1"
-	$statusBar1.Text = "Ready" #  pull LabStartup status into here for initial text
+	$statusBar1.Text = "Module 1"
 	$System_Drawing_Size = New-Object System.Drawing.Size
 	$System_Drawing_Size.Width = $MainFormWidth
 	$System_Drawing_Size.Height = 20
@@ -224,7 +223,7 @@ function DisplayModuleSwitcherForm {
 	}
 
 	### GroupBoxes and Buttons
-	for( $i=2 ; $i -le ($numbuttons + 1) ; $i++ ) {
+	for( $i=1 ; $i -le ($numbuttons + 1) ; $i++ ) {
 		Set-Variable "gbModule$i" -value $(New-Object System.Windows.Forms.GroupBox)
 		Set-Variable $("m" + $i + "Start") -value $(New-Object System.Windows.Forms.Button)
 		$StartButtons.Add( "Start$i",(Get-Variable $("m" + $i + "Start" )).Value )
@@ -241,8 +240,8 @@ function DisplayModuleSwitcherForm {
 		(Get-Variable "gbModule$i").Value.Size = $System_Drawing_Size
 		
 		$System_Drawing_Point = New-Object System.Drawing.Point
-		$theX = ($i - 2) % $NUM_COLUMNS + 1
-		$theY = [math]::floor( ($i - 2) / $NUM_COLUMNS ) + 1
+		$theX = ($i - 1) % $NUM_COLUMNS + 1
+		$theY = [math]::floor( ($i - 1) / $NUM_COLUMNS ) + 1
 
 		$System_Drawing_Point.X = (Get-Variable "col$theX").Value
 		$System_Drawing_Point.Y = (Get-Variable "row$theY").Value
@@ -261,8 +260,11 @@ function DisplayModuleSwitcherForm {
 		(Get-Variable $("m" + $i + "Start")).Value.Size = $System_Drawing_Size
 		(Get-Variable $("m" + $i + "Start")).Value.UseVisualStyleBackColor = $True
 		
-		(Get-Variable $("m" + $i + "Start")).Value.Text = "Start"
-		
+		if( $i -eq 1 ) {
+			(Get-Variable $("m" + $i + "Start")).Value.Text = "Stop"
+		} else {
+			(Get-Variable $("m" + $i + "Start")).Value.Text = "Start"
+		}
 		$System_Drawing_Point = New-Object System.Drawing.Point
 		$System_Drawing_Point.X = $BUTTON_OFFSET_X
 		$System_Drawing_Point.Y = $BUTTON_OFFSET_Y
