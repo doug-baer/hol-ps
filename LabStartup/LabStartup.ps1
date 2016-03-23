@@ -27,7 +27,7 @@ NONE
 
 .OUTPUTS
 Log messages are written to the console or redirected to an output file and 
-C:\HOL\startup_status.txt ($statusFile) is updated with periodic status for consumption by DesktopInfo.exe using the Write-Progress function.
+C:\HOL\startup_status.txt ($statusFile) is updated with periodic status for consumption by DesktopInfo.exe using the Write-VpodProgress function.
 The IP address of the 6th NIC on the vpodrouter (router.corp.local) is modified 
 with an encoded status code as the script progresses.
 Upon failure, whether explicit or via script timeout, the script will set the FAILURE 
