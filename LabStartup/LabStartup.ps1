@@ -10,7 +10,7 @@ on TCP ports or via URLs. Records progress into a log file and simple status int
 for consumption by DesktopInfo. Modifies 6th NIC on vpodrouter to report status upstream.
 
 .NOTES
-LabStartup.ps1 - January 7, 2016
+LabStartup.ps1 - March 23, 2016
 * A majority of the functions are loaded via C:\HOL\LabStartupFunctons.ps1
 * URLs must begin with http:// or https:// (with valid certificate)
 * The IP address on the eth5 NIC of the vpodrouter is set using SSH (plink.exe) 
@@ -189,7 +189,7 @@ Catch {
 	Write-Output "ERROR - malformed lab SKU: $TMP"
 	$IPNET= '192.168.250'
 	# fail the script 
-	Write-Progress "FAIL-Bad Lab SKU" 'FAIL-1'
+	Write-VpodProgress "FAIL-Bad Lab SKU" 'FAIL-1'
 }
 
 
@@ -202,7 +202,7 @@ Try {
 } 
 Catch {
 	Write-Host "No PowerCLI found, unable to continue."
-	Write-Progress "FAIL - No PowerCLI" 'FAIL-1'
+	Write-VpodProgress "FAIL - No PowerCLI" 'FAIL-1'
 	Break
 } 
 
@@ -221,16 +221,16 @@ Exit
 
 #Report Initial State
 # Write-Output writes to the C:\HOL\Labstartup.log file
-# Write-Progress writes to the DesktopInfo
+# Write-VpodProgress writes to the DesktopInfo
 Write-Output "$(Get-Date) Beginning Main script"
-Write-Progress "Not Ready" 'STARTING'
+Write-VpodProgress "Not Ready" 'STARTING'
 
 ##############################################################################
 ##### Lab Startup - STEP #1 (Infrastructure) 
 ##############################################################################
 
 #Testing vESXi hosts are online
-Write-Progress "Checking vESXi" 'STARTING'
+Write-VpodProgress "Checking vESXi" 'STARTING'
 Foreach ($ESXihost in $ESXiHosts) {
 	($server,$port) = $ESXiHost.Split(":")
 	Do {
@@ -239,7 +239,7 @@ Foreach ($ESXihost in $ESXiHosts) {
 	} Until ($result -eq "success")
 }
 
-Write-Progress "Connecting vCenter" 'STARTING'
+Write-VpodProgress "Connecting vCenter" 'STARTING'
 
 
 # attempt to connect to each vCenter and restart if no connection by $vcBootMinutes
@@ -262,7 +262,7 @@ Foreach ($dsLine in $datastores) {
 ##### Lab Startup - STEP #2 (Starting Nested VMs and vApps) 
 ##############################################################################
 
-Write-Progress "Starting vVMs" 'STARTING'
+Write-VpodProgress "Starting vVMs" 'STARTING'
 
 # Use the Start-Nested function to start batches of nested VMs and/or vApps
 # Create additional arrays for each batch of VMs and/or vApps
@@ -294,14 +294,14 @@ Foreach ($ping in $Pings) {
 ##### Lab Startup - STEP #4 (Start/Restart/Stop/Query Services and test ports) 
 ##############################################################################
 
-Write-Progress "Manage Win Svcs" 'GOOD-4'
+Write-VpodProgress "Manage Win Svcs" 'GOOD-4'
 
 # Manage Windows services on remote machines
 StartWindowsServices $windowsServices
 
 Write-Output "$(Get-Date) Finished $action Windows services"
 
-Write-Progress "Manage Linux Svcs" 'GOOD-4'
+Write-VpodProgress "Manage Linux Svcs" 'GOOD-4'
 
 # options are "start", "restart", "stop" or "query"
 $action = "start"
@@ -319,7 +319,7 @@ Foreach ($service in $linuxServices) {
 
 Write-Output "$(Get-Date) Finished $action Linux services"
 
-Write-Progress "Testing TCP ports" 'GOOD-4'
+Write-VpodProgress "Testing TCP ports" 'GOOD-4'
 
 #Ensure services in the $TCPServices array are answering on specified ports 
 Foreach ($service in $TCPservices) {
@@ -336,7 +336,7 @@ Write-Output "$(Get-Date) Finished testing TCP ports"
 ##### Lab Startup - STEP #5 (Testing URLs) 
 ##############################################################################
 
-Write-Progress "Checking URLs" 'GOOD-5'
+Write-VpodProgress "Checking URLs" 'GOOD-5'
 
 #Testing URLs
 # Uncomment "-Verbose" to see the HTML returned for pattern matching
@@ -348,7 +348,7 @@ Foreach ($url in $($URLs.Keys)) {
 }
 
 
-#Write-Progress "Starting Additional Tests" 'GOOD-5'
+#Write-VpodProgress "Starting Additional Tests" 'GOOD-5'
 ## Any final checks here. Maybe you need to check something after the
 ## services are started/restarted.
 
@@ -384,11 +384,11 @@ Write-Output $msg
 
 #>
 
-Write-Progress "Finished Additional Tests" 'GOOD-5'
+Write-VpodProgress "Finished Additional Tests" 'GOOD-5'
 
 
 #Report final state and duration
-Write-Progress "Ready" 'READY'
+Write-VpodProgress "Ready" 'READY'
 Write-Output $( "$(Get-Date) LabStartup Finished - runtime was {0:N0} minutes." -f  ((Get-RuntimeSeconds $startTime) / 60) )
 
 ##############################################################################
