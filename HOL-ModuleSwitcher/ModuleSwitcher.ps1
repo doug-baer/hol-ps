@@ -31,7 +31,7 @@ $activeModuleFile = Join-Path $ModuleSwitchDir 'currentModule.txt'
 # Initially, module 1 is the active module unless there is a state file
 if( Test-Path $activeModuleFile ) {
 	$activeModule = [int](Get-Content $activeModuleFile) + 0
-	Write-Host "Active Module File found - Active module is $activeModule " $activeModule.GetType()
+	#Write-Host "Active Module File found - Active module is $activeModule " $activeModule.GetType()
 } else {
 	$activeModule = 1
 	Set-Content -Path $activeModuleFile -Value $activeModule
@@ -96,7 +96,7 @@ function DisablePrevious {
 				if( $StartButtons.ContainsKey($buttonName) ) {
 					$StartButtons[$buttonName].Enabled = $false
 				}
-				Write-Host "  disabling $i"
+				#Write-Host "  disabling $i"
 			}
 			#Change this button's name to "Stop" and enable it
 			$thisButtonName = "Start" + $thisModule
