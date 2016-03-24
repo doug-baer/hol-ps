@@ -94,6 +94,7 @@ $result = ''
 # No need to include vCenter in the vPod if not showing vCenter in the lab 
 $vCenters = @(
 	'vcsa-01a.corp.local:linux'
+	#'vcsa-01b.corp.local:linux'
 	#'vc-01a.corp.local:windows'
 	#'esx-01a.corp.local:esx'
 )
@@ -102,11 +103,17 @@ $vCenters = @(
 $ESXiHosts = @(
 	'esx-01a.corp.local:22'
 	'esx-02a.corp.local:22'
+	'esx-03a.corp.local:22'
+	#'esx-01b.corp.local:22'
+	#'esx-02b.corp.local:22'
+	#'esx-03b.corp.local:22'
 )
 
-# FreeNAS datastore names in vCenter
+# datastore names in vCenter(s)
 $datastores = @(
-	'stga-01a.corp.local:ds-site-a-nfs01'
+	'VSAN:DS-R1-VSAN'
+	#'VSAN:DS-R2-VSAN'
+	#'stga-01a.corp.local:ds-site-a-nfs01'
 )
 
 # Windows Services to be checked / started
@@ -121,7 +128,8 @@ $windowsServices = @(
 
 #Linux Services to be checked / started
 $linuxServices = @(
- 'vcsa-01a.corp.local:vsphere-client'  # include this entry if using a vCenter appliance
+	'vcsa-01a.corp.local:vsphere-client'  # include this entry if using a vCenter appliance
+	#'vcsa-01b.corp.local:vsphere-client'
 )
 
 # Nested Virtual Machines to be powered on
@@ -148,7 +156,9 @@ $TCPservices = @(
 #URLs to be checked for specified text in response
 $URLs = @{
 	'https://vcsa-01a.corp.local/vsphere-client/' = 'vSphere Web Client'
-	'http://stga-01a.corp.local/account/login' = 'FreeNAS'
+	#'https://vcsa-01b.corp.local/vsphere-client/' = 'vSphere Web Client'
+	#'https://webapp.corp.local/cgi-bin/hol.cgi' = 'HOL - Multi-Tier App'
+	#'http://stga-01a.corp.local/account/login' = 'FreeNAS'
 	#'https://psc-01a.corp.local/websso/' = 'Welcome'
 	}
 
