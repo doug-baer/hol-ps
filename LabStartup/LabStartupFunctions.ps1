@@ -578,17 +578,19 @@ Function Check-Datastore ([string] $dsline, [REF]$result )
 			# fail lab at this point?
 		}
 	} Else {
-		Write-Output "$datastoreName is not available. Rebooting $server..."
-		$lcmd = "init 6 2>&1"
-		$msg = Invoke-Plink -remoteHost $server -login $linuxuser -passwd $linuxpassword -command $lcmd
-		If ( $msg -eq $null ) { 
-			Write-Host "Pausing 60 seconds for $server to reboot..."
-			LabStartup-Sleep 60
-			$pingResult = ''
-			Do { 
-					Test-Ping $server ([REF]$pingResult)
-					LabStartup-Sleep $sleepSeconds
-			} Until ($pingResult -eq "success")
+		If( $Server -ne 'VSAN' ) {
+			Write-Output "$datastoreName is not available. Rebooting $server..."
+			$lcmd = "init 6 2>&1"
+			$msg = Invoke-Plink -remoteHost $server -login $linuxuser -passwd $linuxpassword -command $lcmd
+			If ( $msg -eq $null ) { 
+				Write-Host "Pausing 60 seconds for $server to reboot..."
+				LabStartup-Sleep 60
+				$pingResult = ''
+				Do { 
+						Test-Ping $server ([REF]$pingResult)
+						LabStartup-Sleep $sleepSeconds
+				} Until ($pingResult -eq "success")
+			}
 		}
 		# how long does it take for this to succeed after storage reboot?
 		Write-Host "Pausing another 60 seconds for $server to come up..."
