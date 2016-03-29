@@ -4,33 +4,38 @@
 
 .DESCRIPTION	
 
-.NOTES				Version 1.12 - 29 March 2016
+.NOTES				Version 1.13 - 29 March 2016
  
 .EXAMPLE			.\ModuleSwitcher.ps1
 
-.INPUTS				Provide scripts with names like "Module02.ps1" in the $ModuleSwitchDir
+.INPUTS				Provide scripts with names like "Module02.ps1" in the $ModuleSwitchDirPath
 							** Note the two-digit value in the script names **
 							Each provided script should take two parameters: "START" and "STOP"
 
 .OUTPUTS			Each script is launched in its own PS console
 
 #>
+PARAM(
+	[string]$ModuleSwitchDirPath = 'C:\HOL\ModuleSwitcher',
+	[switch]$Force
+)
 
-$ModuleSwitchDir = 'C:\HOL\ModuleSwitcher'
-if( Test-Path $ModuleSwitchDir ) {
-	$ModuleScripts = Get-ChildItem -Path $ModuleSwitchDir -Filter 'Module*.ps1' | Sort
+if( Test-Path $ModuleSwitchDirPath ) {
+	$ModuleScripts = Get-ChildItem -Path $ModuleSwitchDirPath -Filter 'Module*.ps1' | Sort
 	$numButtons = $ModuleScripts.Count
 } else {
-	Write-Host -ForegroundColor Red "ERROR - Unable to locate $ModuleSwitchDir"
+	Write-Host -ForegroundColor Red "ERROR - Unable to locate $ModuleSwitchDirPath"
 	exit
 }
 
+$ModuleSwitchDirName = $ModuleSwitchDirPath | Split-Path -Leaf
+
 #State File - needs to be wiped in lablogoff.ps1
-$activeModuleFile = Join-Path $ModuleSwitchDir 'currentModule.txt'
+$activeModuleFile = Join-Path $ModuleSwitchDirPath 'currentModule.txt'
 
 # Initially, module 1 is the active module unless there is a state file 
-#... OR "FORCE" is specified on the command line
-if( (Test-Path $activeModuleFile) -and ($args[0] -ne 'FORCE') ) {
+#... OR "-Force" switch is specified on the command line
+if( (Test-Path $activeModuleFile) -and !($Force) ) {
 	$global:activeModule = [int](Get-Content $activeModuleFile) + 0
 	#Write-Host "Active Module File found - Active module is $global:activeModule"
 } else {
@@ -203,7 +208,7 @@ function DisplayModuleSwitcherForm {
 	########################################################################
 	### Build the Form/Panel
 	
-	$moduleSwitcherForm.Text = "ModuleSwitcher Form"
+	$moduleSwitcherForm.Text = "$ModuleSwitchDirName"
 	$moduleSwitcherForm.Name = "moduleSwitcherForm"
 	$moduleSwitcherForm.DataBindings.DefaultDataSourceUpdateMode = 0
 	$System_Drawing_Size = New-Object System.Drawing.Size
@@ -221,7 +226,7 @@ function DisplayModuleSwitcherForm {
 	$System_Drawing_Size.Width = $MainFormWidth - 10
 	$System_Drawing_Size.Height = 30
 	$label1.Size = $System_Drawing_Size
-	$label1.Text = "Hands-on Labs Module Switcher"
+	$label1.Text = "$ModuleSwitchDirName Module Switcher"
 	$label1.Font = New-Object System.Drawing.Font("Microsoft Sans Serif",12,1,3,0)
 	$System_Drawing_Point = New-Object System.Drawing.Point
 	$System_Drawing_Point.X = 10
@@ -237,7 +242,7 @@ function DisplayModuleSwitcherForm {
 	
 	$statusBar1 = New-Object System.Windows.Forms.StatusBar
 	$statusBar1.Name = "statusBar1"
-	$statusBar1.Text = "Module 1"
+	$statusBar1.Text = "Active module: 1"
 	$System_Drawing_Size = New-Object System.Drawing.Size
 	$System_Drawing_Size.Width = $MainFormWidth
 	$System_Drawing_Size.Height = 20
@@ -250,9 +255,9 @@ function DisplayModuleSwitcherForm {
 	$statusBar1.TabIndex = 0
 	$moduleSwitcherForm.Controls.Add($statusBar1)
 	
-	#Corner case - ModuleSwitchDir exists, but no matching scripts
+	#Corner case - ModuleSwitchDirPath exists, but no matching scripts
 	if( $numButtons -lt 1 ) { 
-		$statusBar1.Text = "No ModuleSwitcher scripts found in $moduleswitchdir" 
+		$statusBar1.Text = "No ModuleSwitcher scripts found in $ModuleSwitchDirPath" 
 	}
 
 	### GroupBoxes and Buttons
