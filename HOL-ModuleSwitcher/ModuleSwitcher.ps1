@@ -4,7 +4,7 @@
 
 .DESCRIPTION	
 
-.NOTES				Version 1.1 - 23 March 2016
+.NOTES				Version 1.12 - 29 March 2016
  
 .EXAMPLE			.\ModuleSwitcher.ps1
 
@@ -28,13 +28,14 @@ if( Test-Path $ModuleSwitchDir ) {
 #State File - needs to be wiped in lablogoff.ps1
 $activeModuleFile = Join-Path $ModuleSwitchDir 'currentModule.txt'
 
-# Initially, module 1 is the active module unless there is a state file
-if( Test-Path $activeModuleFile ) {
-	$activeModule = [int](Get-Content $activeModuleFile) + 0
-	#Write-Host "Active Module File found - Active module is $activeModule " $activeModule.GetType()
+# Initially, module 1 is the active module unless there is a state file 
+#... OR "FORCE" is specified on the command line
+if( (Test-Path $activeModuleFile) -and ($args[0] -ne 'FORCE') ) {
+	$global:activeModule = [int](Get-Content $activeModuleFile) + 0
+	#Write-Host "Active Module File found - Active module is $global:activeModule"
 } else {
-	$activeModule = 1
-	Set-Content -Path $activeModuleFile -Value $activeModule
+	$global:activeModule = 1
+	Set-Content -Path $activeModuleFile -Value $global:activeModule
 }
 # Create a hashtable of Start buttons here
 $StartButtons = @{}
@@ -84,13 +85,13 @@ if( $numRows -lt 5 ) {
 function DisablePrevious { 
 	PARAM ( [int]$thisModule )
 	PROCESS {
-		if( $thisModule -eq $activeModule ) { 
+		if( $thisModule -eq $global:activeModule ) { 
 			#this happens if there is a statefile. need to disable ALL previous buttons
 			$startModule = 1 
 		} else { 
-			$startModule = $activeModule
+			$startModule = $global:activeModule
 		}
-		if( $thisModule -ge $activeModule ) {
+		if( $thisModule -ge $global:activeModule ) {
 			for($i=$startModule; $i -lt $thisModule; $i++) {
 				$buttonName = "Start$i"
 				if( $StartButtons.ContainsKey($buttonName) ) {
@@ -103,15 +104,10 @@ function DisablePrevious {
 			if( $StartButtons.ContainsKey($thisButtonName) ) {
 				$StartButtons[$thisButtonName].Text = "Stop"
 			}
-
-			$activeModule = $thisModule
-			Set-Content -Path $activeModuleFile -Value $activeModule
-			$statusBar1.Text = "Active module: $activeModule"
-
 		} else {
 			#how did we get here?
 			$wshell = New-Object -ComObject Wscript.Shell
-			$wshell.Popup("Attempting to go backwards! $activeModule to $thisModule",0,"Oops!",0x1)
+			$wshell.Popup("Attempting to go backwards! $global:activeModule to $thisModule",0,"Oops!",0x1)
 		}
 	}
 }#End DisablePrevious
@@ -127,9 +123,8 @@ function DisplayModuleSwitcherForm {
 	[reflection.assembly]::loadwithpartialname("System.Windows.Forms") | Out-Null
 
 	$moduleSwitcherForm = New-Object System.Windows.Forms.Form
-			
+
 	$InitialFormWindowState = New-Object System.Windows.Forms.FormWindowState
-	
 	
 	#Example to display a Windows dialog (in case of errors)
 	#	$wshell = New-Object -ComObject Wscript.Shell
@@ -153,8 +148,29 @@ function DisplayModuleSwitcherForm {
 		$buttonAction = ($this.Text).ToUpper()
 		
 		$ScriptPath = ($ModuleScripts | where { $_.Name -match "Module$numModule" | select -first 1 }).FullName
+		
+		#If we are issuing a START, must call STOP on the active module
+		if( $buttonAction -eq 'START' ) {
+			if( $global:activeModule -lt 10 ) { 
+				$numActiveModule = "0$global:activeModule"
+			} else {
+				$numActiveModule = $global:activeModule
+			}
 
-		#Write-Host "Testing $ScriptPath"
+			# the currently active module's script, so we can call its STOP action
+			$global:activeModuleScriptPath = ($ModuleScripts | where { $_.Name -match "$numActiveModule" | select -first 1 }).FullName
+			try { 
+				if( Test-Path $global:activeModuleScriptPath ) {
+					#do this and then wait for completion prior to continuing
+					Start-Process powershell -ArgumentList "-command $global:activeModuleScriptPath 'STOP'" -Wait
+				}
+			}
+			catch {
+				$wshell = New-Object -ComObject Wscript.Shell
+				$wshell.Popup("Error: Unable to Locate script $global:activeModuleScriptPath",0,"Dang!",0x1)
+			}
+		}
+
 		try { 
 			if( Test-Path $ScriptPath ) {
 				Start-Process powershell -ArgumentList "-command $ScriptPath $buttonAction"
@@ -165,6 +181,11 @@ function DisplayModuleSwitcherForm {
 						$StartButtons[$buttonName].Enabled = $false
 					}
 					$statusBar1.Text = "No active module"
+					$global:activeModule = 1
+				} else {
+					$global:activeModule = $thisButton
+					Set-Content -Path $activeModuleFile -Value $global:activeModule
+					$statusBar1.Text = "Active module: $global:activeModule"
 				}
 			}
 		}
@@ -297,7 +318,7 @@ function DisplayModuleSwitcherForm {
 	#Init the OnLoad event to correct the initial state of the form
 	$moduleSwitcherForm.add_Load($OnLoadForm_StateCorrection)
 	#Disable previous module buttons - based on statefile contents
-	DisablePrevious $activeModule
+	DisablePrevious $global:activeModule
 	#Show the Form
 	$moduleSwitcherForm.ShowDialog()| Out-Null
 	
