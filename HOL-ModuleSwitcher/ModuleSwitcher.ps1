@@ -4,7 +4,7 @@
 
 .DESCRIPTION	
 
-.NOTES				Version 1.13 - 29 March 2016
+.NOTES				Version 1.14 - 30 March 2016
  
 .EXAMPLE			.\ModuleSwitcher.ps1
 
@@ -20,6 +20,7 @@ PARAM(
 	[switch]$Force
 )
 
+#$ModuleSwitchDirPath = 'C:\HOL\ModuleSwitcher'
 if( Test-Path $ModuleSwitchDirPath ) {
 	$ModuleScripts = Get-ChildItem -Path $ModuleSwitchDirPath -Filter 'Module*.ps1' | Sort
 	$numButtons = $ModuleScripts.Count
@@ -34,7 +35,8 @@ $ModuleSwitchDirName = $ModuleSwitchDirPath | Split-Path -Leaf
 $activeModuleFile = Join-Path $ModuleSwitchDirPath 'currentModule.txt'
 
 # Initially, module 1 is the active module unless there is a state file 
-#... OR "-Force" switch is specified on the command line
+#... OR "FORCE" is specified on the command line
+#if( (Test-Path $activeModuleFile) -and ($args[0] -ne 'FORCE') ) {
 if( (Test-Path $activeModuleFile) -and !($Force) ) {
 	$global:activeModule = [int](Get-Content $activeModuleFile) + 0
 	#Write-Host "Active Module File found - Active module is $global:activeModule"
@@ -226,7 +228,11 @@ function DisplayModuleSwitcherForm {
 	$System_Drawing_Size.Width = $MainFormWidth - 10
 	$System_Drawing_Size.Height = 30
 	$label1.Size = $System_Drawing_Size
-	$label1.Text = "$ModuleSwitchDirName Module Switcher"
+	if( $ModuleSwitchDirName -ne 'ModuleSwitcher') {
+		$label1.Text = "$ModuleSwitchDirName Module Switcher"
+	} else {
+		$label1.Text = "Hands-on Labs Module Switcher"
+	}
 	$label1.Font = New-Object System.Drawing.Font("Microsoft Sans Serif",12,1,3,0)
 	$System_Drawing_Point = New-Object System.Drawing.Point
 	$System_Drawing_Point.X = 10
