@@ -4,9 +4,11 @@
 
 .DESCRIPTION	
 
-.NOTES				Version 1.14 - 30 March 2016
+.NOTES				Version 1.15 - 30 March 2016
  
 .EXAMPLE			.\ModuleSwitcher.ps1
+.EXAMPLE			.\ModuleSwitcher.ps1 -Force
+.EXAMPLE			.\ModuleSwitcher.ps1 -ModuleSwitchDirPath C:\HOL\MS\MBL-1700-1
 
 .INPUTS				Provide scripts with names like "Module02.ps1" in the $ModuleSwitchDirPath
 							** Note the two-digit value in the script names **
@@ -68,21 +70,27 @@ Set-Variable row1 -value 50 -option Constant
 Set-Variable row2 -value 120 -option Constant
 Set-Variable row3 -value 190 -option Constant
 Set-Variable row4 -value 260 -option Constant
+Set-Variable row5 -value 330 -option Constant
 
 Set-Variable col1 -value 10 -option Constant
 Set-Variable col2 -value 105 -option Constant
 Set-Variable col3 -value 200 -option Constant
 Set-Variable col4 -value 295 -option Constant
+Set-Variable col5 -value 390 -option Constant
 
 # the value of 20 is the offset from the edge
 # the bottom gets an extra 30 for the height of the status bar + 10 extra
 
 ## Resize panel based on number of Module scripts available
-$MainFormWidth = $col4 + $BUTTON_WIDTH + ($NUM_COLUMNS * 5) # 390 for all
+$MainFormWidth = (Get-Variable "col$NUM_COLUMNS").Value + $BUTTON_WIDTH + ($NUM_COLUMNS * 5) # 390 for all
 $numRows = [math]::ceiling($numButtons / $NUM_COLUMNS)
-if( $numRows -lt 5 ) {
+if( $numRows -lt 6 ) {
 #	Write-Host "Setting Form Height to " (Get-Variable "row$numRows").Value
 	$MainFormHeight = (Get-Variable "row$numRows").Value + $BUTTON_HEIGHT + 50
+} else {
+	Write-Host -ForegroundColor Red "Maximum supported modules is 20 (5 rows). Please contact HOL core team if you require more than 20 buttons."
+	Pause
+	Return
 }
 
 
