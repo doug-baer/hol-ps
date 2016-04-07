@@ -3,6 +3,9 @@
 	Start with empty vCenter inventory
 	End with Datacenter, Cluster, $baseHostCount hosts in the Cluster
 		NFS datastore mounted, VDS implemented and hosts migrated to the VDS
+		
+		**** THIS IS FOR 2015 -- NEEDS OVERHAUL FOR 2016 CONFIG ***
+		
 #>
 
 $esxSettings = @{
