@@ -40,7 +40,7 @@ foreach( $hostNumber in $hostNumbers ) {
 	if( $hostNumber -lt 10 ) { 
 		$hostNumber = "0$hostNumber" 
 	}
-	$hostNames += ("esx$hostNumber" + "$site.corp.local") 
+	$hostNames += ('esx-' + $hostNumber + "$site.corp.local") 
 }
 
 #####################################################################
