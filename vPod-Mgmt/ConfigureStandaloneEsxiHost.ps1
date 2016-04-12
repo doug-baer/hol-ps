@@ -2,7 +2,7 @@
 	Configuration script for HOL "extra" vESXi hosts
 		Basic networking + VSAN prep
 		
-	April 7, 2016
+	April 11, 2016
 #>
 
 
@@ -21,7 +21,7 @@ $hostNumbers = (4,5,6,7,8)
 $esxSettings = @{
 	'UserVars.DcuiTimeOut' = 0
 	'UserVars.SuppressShellWarning' = 1
-	'Syslog.global.logHost' = 'udp://vcsa-01a.corp.local:514'
+	'Syslog.global.logHost' = "udp://vcsa-01$site.corp.local:514"
 	'Syslog.global.defaultRotate' = 2
 }
 
