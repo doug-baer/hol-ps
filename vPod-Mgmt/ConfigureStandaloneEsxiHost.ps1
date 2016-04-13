@@ -2,7 +2,7 @@
 	Configuration script for HOL "extra" vESXi hosts
 		Basic networking + VSAN prep
 		
-	April 11, 2016
+	April 13, 2016
 #>
 
 
@@ -131,6 +131,9 @@ Foreach( $hostName in $hostNames) {
 	} else {
 		Write-Host -Fore Yellow "No PS module HOL-SCSI loaded, not flagging devices"
 	}
+	
+	Write-Host -Fore Green "Enter Maintenance Mode"
+	$h | Set-VMhost -State Maintenance
 	
 	Write-Host -Fore Green "Finished with host $hostname"
 	Disconnect-VIserver * -Confirm:$false
