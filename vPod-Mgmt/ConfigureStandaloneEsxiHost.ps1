@@ -2,7 +2,7 @@
 	Configuration script for HOL "extra" vESXi hosts
 		Basic networking + VSAN prep
 		
-	April 13, 2016
+	April 15, 2016
 #>
 
 
@@ -12,11 +12,25 @@ $ntpServer = '192.168.100.1'
 $vsanSsdSize = 5
 $vsanHddSize = 40
 
-#Change this to a or b, depending on which site's hosts are being built
-$site = 'a'
-#Set this to the numbers of the hosts that you want to configure
-$hostNumbers = (4,5,6,7,8)
+#Determine site A or site B
+$site = ''
+while( ($site -ne 'a') -and ($site -ne 'b') -and ($site -ne 'q') ) {
+	$site = Read-Host "Enter the site (a|b) or 'q' to quit"
+	$site = $site.ToLower()
+}
+if( $site -eq 'q' ) { Return }
 
+#Set this to the numbers of the hosts that you want to configure
+$numbers = Read-Host 'Host numbers as a comma-separated list (default=4,5,6,7,8)'
+if( $numbers -ne '' ) { 
+	$hostNumbers =  ($numbers.Split(',')) | %  { [int] $_ }
+}
+else {
+	$hostNumbers = (4,5,6,7,8)
+	$numbers = '4,5,6,7,8'
+}
+
+Write-Host "Performing operation on site $($site.ToUpper()) for hosts $numbers"
 
 $esxSettings = @{
 	'UserVars.DcuiTimeOut' = 0
@@ -41,6 +55,18 @@ foreach( $hostNumber in $hostNumbers ) {
 		$hostNumber = "0$hostNumber" 
 	}
 	$hostNames += ('esx-' + $hostNumber + "$site.corp.local") 
+}
+
+Write-Host "Perform configuration for hosts:"
+Foreach( $hostName in $hostNames ) {
+	Write-Host "`t$hostName"
+}
+
+while( $answer -ne 'y' ) {
+	$answer = Read-Host "Confirm? [Y|n]"
+	$answer = $answer.ToLower()
+	if( $answer -eq '' ) { $answer = 'y' }
+	if( $answer -eq 'n' ) { Return }
 }
 
 #####################################################################
