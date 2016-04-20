@@ -111,8 +111,8 @@ $ESXiHosts = @(
 
 # datastore names in vCenter(s)
 $datastores = @(
-	'VSAN:DS-R1-VSAN'
-	#'VSAN:DS-R2-VSAN'
+	'VSAN:RegionA01-VSAN-COMP01'
+	#'VSAN:RegionB01-VSAN-COMP01'
 	#'stga-01a.corp.local:ds-site-a-nfs01'
 )
 
@@ -176,13 +176,25 @@ $userProfilePath = (Get-Childitem env:UserProfile).Value
 $firefoxProfiles = Get-ChildItem (Join-Path $userProfilePath 'AppData\Roaming\Mozilla\Firefox\Profiles')
 Foreach ($firefoxProfile in $firefoxProfiles) {
 	$firefoxLock = Join-Path $firefoxProfile.FullName 'parent.lock'
-		Try {
-			Remove-Item $firefoxLock -ErrorAction SilentlyContinue | Out-Null 
-		}
-		Catch {
-			Write-Output "Firefox parent.lock not removed."
-		}
+	Try {
+		Remove-Item $firefoxLock -ErrorAction SilentlyContinue | Out-Null 
+	}
+	Catch {
+		Write-Output "Firefox parent.lock not removed."
+	}
 } #END Fix Firefox Reset Message
+
+#Clean up HOL ModuleSwitcher state file(s)
+$ModuleSwitcherPath = 'C:\HOL\ModuleSwitcher'
+$ModuleSwitcherStateFiles = Get-ChildItem -Path $ModuleSwitcherPath -Filter 'currentModule.txt' -Recurse
+Foreach ($ModuleSwitcherStateFile in $ModuleSwitcherStateFiles) {
+	Try {
+		Remove-Item $ModuleSwitcherStateFile.FullName -ErrorAction SilentlyContinue | Out-Null 
+	}
+	Catch {
+		Write-Output "$($ModuleSwitcherStateFile.FullName) not removed."
+	}	
+} #END Clean up HOL Module Switcher state file(s)
 
 # Use the configured Lab SKU to configure eth5 on vpodrouter
 # bad SKU is a failure
