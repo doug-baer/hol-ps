@@ -4,7 +4,7 @@
 
 .DESCRIPTION	
 
-.NOTES				Version 1.15 - 30 March 2016
+.NOTES				Version 1.17 - 26 April 2016
  
 .EXAMPLE			.\ModuleSwitcher.ps1
 .EXAMPLE			.\ModuleSwitcher.ps1 -Force
@@ -13,8 +13,11 @@
 .INPUTS				Provide scripts with names like "Module02.ps1" in the $ModuleSwitchDirPath
 							** Note the two-digit value in the script names **
 							Each provided script should take two parameters: "START" and "STOP"
+					<ModuleSwitchDirPath>\moduleMessages.txt
 
 .OUTPUTS			Each script is launched in its own PS console
+					C:\HOL\ModuleSwitcher\currentMessage.txt - GLOBAL file for any panel
+					<ModuleSwitchDirPath>\currentModule.txt - the current module
 
 #>
 PARAM(
@@ -22,7 +25,6 @@ PARAM(
 	[switch]$Force
 )
 
-#$ModuleSwitchDirPath = 'C:\HOL\ModuleSwitcher'
 if( Test-Path $ModuleSwitchDirPath ) {
 	$ModuleScripts = Get-ChildItem -Path $ModuleSwitchDirPath -Filter 'Module*.ps1' | Sort
 	$numButtons = $ModuleScripts.Count
@@ -33,8 +35,23 @@ if( Test-Path $ModuleSwitchDirPath ) {
 
 $ModuleSwitchDirName = $ModuleSwitchDirPath | Split-Path -Leaf
 
-#State File - needs to be wiped in lablogoff.ps1
+#read the Module Descriptions: one message per line
+$ModuleMessagesFile = Join-Path $ModuleSwitchDirPath 'moduleMessages.txt'
+if( Test-Path $ModuleMessagesFile ) {
+	$ModuleMessages = Get-Content -Path $ModuleMessagesFile
+	if( $ModuleMessages.Count -eq $numButtons ) {
+		#only write messages if equal number of messages and buttons
+		$writeDescriptions = $true
+	} else {
+		Write-Host -ForegroundColor Yellow -BackgroundColor Black "WARNING - mismatch of count messages and buttons"
+		$writeDescriptions = $false
+	}
+}
+
+#State Files - need to be wiped in lablogoff.ps1
 $activeModuleFile = Join-Path $ModuleSwitchDirPath 'currentModule.txt'
+#this one is a static path since DesktopInfo needs to point to ONE location
+$activeModuleMessageFile = 'C:\HOL\ModuleSwitcher\currentMessage.txt'
 
 # Initially, module 1 is the active module unless there is a state file 
 #... OR "FORCE" is specified on the command line
@@ -45,6 +62,9 @@ if( (Test-Path $activeModuleFile) -and !($Force) ) {
 } else {
 	$global:activeModule = 1
 	Set-Content -Path $activeModuleFile -Value $global:activeModule
+	if( $writeDescriptions ) { 
+		Set-Content -Path $activeModuleMessageFile -Value $ModuleMessages[$global:activeModule - 1] 
+	}
 }
 # Create a hashtable of Start buttons here
 $StartButtons = @{}
@@ -200,6 +220,9 @@ function DisplayModuleSwitcherForm {
 				} else {
 					$global:activeModule = $thisButton
 					Set-Content -Path $activeModuleFile -Value $global:activeModule
+					if( $writeDescriptions ) { 
+						Set-Content -Path $activeModuleMessageFile -Value $ModuleMessages[$global:activeModule - 1] 
+					}
 					$statusBar1.Text = "Active module: $global:activeModule"
 				}
 			}
