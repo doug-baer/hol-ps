@@ -4,7 +4,7 @@
 
 .DESCRIPTION	
 
-.NOTES				Version 1.17 - 26 April 2016
+.NOTES				Version 1.18 - 28 April 2016
  
 .EXAMPLE			.\ModuleSwitcher.ps1
 .EXAMPLE			.\ModuleSwitcher.ps1 -Force
@@ -53,18 +53,23 @@ $activeModuleFile = Join-Path $ModuleSwitchDirPath 'currentModule.txt'
 #this one is a static path since DesktopInfo needs to point to ONE location
 $activeModuleMessageFile = 'C:\HOL\ModuleSwitcher\currentMessage.txt'
 
-# Initially, module 1 is the active module unless there is a state file 
-#... OR "FORCE" is specified on the command line
-#if( (Test-Path $activeModuleFile) -and ($args[0] -ne 'FORCE') ) {
-if( (Test-Path $activeModuleFile) -and !($Force) ) {
-	$global:activeModule = [int](Get-Content $activeModuleFile) + 0
-	#Write-Host "Active Module File found - Active module is $global:activeModule"
+# Initially, module 1 is the active module 
+#... unless there is a state file which was created within the last 24 hours
+if( Test-Path $activeModuleFile ) {
+	$age = ( (Get-Date) - (Get-Item $activeModuleFile).LastWriteTime ).Days
 } else {
+	$age = 999
+}
+
+if( ($age -ge 1) -or $Force ) {
 	$global:activeModule = 1
 	Set-Content -Path $activeModuleFile -Value $global:activeModule
 	if( $writeDescriptions ) { 
 		Set-Content -Path $activeModuleMessageFile -Value $ModuleMessages[$global:activeModule - 1] 
 	}
+} else {
+	$global:activeModule = [int](Get-Content $activeModuleFile) + 0
+	#Write-Host "Active Module File found - Active module is $global:activeModule"
 }
 # Create a hashtable of Start buttons here
 $StartButtons = @{}
