@@ -187,6 +187,7 @@ Foreach ($firefoxProfile in $firefoxProfiles) {
 #Clean up HOL ModuleSwitcher state file(s)
 $ModuleSwitcherPath = 'C:\HOL\ModuleSwitcher'
 $ModuleSwitcherStateFiles = Get-ChildItem -Path $ModuleSwitcherPath -Filter 'currentModule.txt' -Recurse
+$ModuleSwitcherStateFiles += Get-ChildItem -Path $ModuleSwitcherPath -Filter 'currentMessage.txt' -Recurse
 Foreach ($ModuleSwitcherStateFile in $ModuleSwitcherStateFiles) {
 	Try {
 		Remove-Item $ModuleSwitcherStateFile.FullName -ErrorAction SilentlyContinue | Out-Null 
