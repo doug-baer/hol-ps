@@ -1,6 +1,20 @@
 <#
-	LabStartup Functions - 2016-03-23
+	LabStartup Functions - 2016-05-02
 #>
+
+# Bypass SSL certificate verification (tesing)
+add-type @"
+	using System.Net;
+	using System.Security.Cryptography.X509Certificates;
+	public class TrustAllCertsPolicy : ICertificatePolicy {
+		public bool CheckValidationResult(
+			ServicePoint srvPoint, X509Certificate certificate,
+			WebRequest request, int certificateProblem) {
+			return true;
+		}
+	}
+"@
+[System.Net.ServicePointManager]::CertificatePolicy = New-Object TrustAllCertsPolicy
 
 # Windows vCenter services
 # services start top to bottom (services are dependent on the services above them)
@@ -518,6 +532,7 @@ Function Test-URL {
 		}
 		Catch {
 			Write-Output "URL $url not accessible"
+			Write-Output "Error occured: $_"
 			$result.value = "fail"
 		}
 		#Reset default SSL validation behavior
@@ -651,3 +666,135 @@ Function Get-URL {
 
 	}
 } #End Get-URL
+
+
+# Small Function to execute a REST operation and return the JSON response
+Function Http-rest-xml
+{
+	<#
+	.SYNOPSIS
+		This function establishes a connection to the NSX API
+	.DESCRIPTION
+		This function establishes a connection to	NSX API
+	.PARAMETER method
+		Specify the REST Method to use (GET/PUT/POST/DELETE)"
+	.PARAMETER uri
+		Specify the REST URI that identifies the resource you want to interact with
+	.PARAMETER body
+		Specify the body content if required (PUT/POST)
+	.INPUTS
+		String: Target IP/hostname
+		String: REST Method to use.
+		String: URI that identifies the resource
+		String: username (optional)
+		String: password (optional)
+		String: Body if required
+	.OUTPUTS
+		JsonObject: Request result in JSON
+	.LINK
+		None.
+	#>
+
+	[CmdletBinding()]
+	PARAM(
+		[
+			parameter(
+				Mandatory = $true,
+				HelpMessage = "Specify the target host IP or DNS name",
+				ValueFromPipeline = $false
+			)
+		]
+		[String]
+		$target,
+		[
+			parameter(
+				Mandatory = $true,
+				HelpMessage = "Specify the REST Method to use (GET/PUT/POST/DELETE)",
+				ValueFromPipeline = $false
+			)
+		]
+		[String]
+		$method,
+		[
+			parameter(
+				Mandatory = $true,
+				HelpMessage = "Specify the REST URI that identifies the resource you want to interact with",
+				ValueFromPipeline = $false
+			)
+		]
+		[String]
+		$uri,
+		[
+			parameter(
+				Mandatory = $false,
+				HelpMessage = "User name, if required",
+				ValueFromPipeline = $false
+			)
+		]
+		[String]
+		$username = '',
+		[
+			parameter(
+				Mandatory = $false,
+				HelpMessage = "Password, if required",
+				ValueFromPipeline = $false
+			)
+		]
+		[String]
+		$password = '',
+		[
+			parameter(
+				Mandatory = $false,
+				HelpMessage = "Specify the body content if required (PUT/POST)",
+				ValueFromPipeline = $false
+			)
+		]
+		[String]
+		$body = $null
+	)
+
+	BEGIN {
+		# Build Url from supplied uri parameter
+		$Url = "https://$target" + $uri
+
+	}
+
+	PROCESS {
+		
+		if( $username -ne '' -and $password -ne '') {
+			# Create authentication header with base64 encoding
+			$EncodedAuthorization = [System.Text.Encoding]::UTF8.GetBytes($username + ':' + $password)
+			$EncodedPassword = [System.Convert]::ToBase64String($EncodedAuthorization)
+
+			# Construct headers with authentication data + expected Accept header (xml / json)
+			$headers = @{"Authorization" = "Basic $EncodedPassword"}
+			$headers.Add("Accept", "application/xml")
+			#$headers.Add("Accept", "application/json")
+		} else {
+			$headers = ''
+		}
+
+		# Build Invoke-RestMethod request
+		try
+		{
+			if (!$body) {
+				$HttpRes = Invoke-RestMethod -Uri $Url -Method $method -Headers $headers
+			}
+			else {
+				$HttpRes = Invoke-RestMethod -Uri $Url -Method $method -Headers $headers -Body $body -ContentType "application/xml"
+			}
+		}
+		catch {
+			Write-Host -ForegroundColor Red "Error connecting to $Url"
+			Write-Host -ForegroundColor Red $_.Exception.Message
+		}
+
+		# If the response to the HTTP request is OK,
+		if ($HttpRes) {
+			return $HttpRes
+		}
+	}
+	END {
+			# What to do here ?
+	}
+} # End Http-rest-xml

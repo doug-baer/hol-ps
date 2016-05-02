@@ -10,7 +10,7 @@ on TCP ports or via URLs. Records progress into a log file and simple status int
 for consumption by DesktopInfo. Modifies 6th NIC on vpodrouter to report status upstream.
 
 .NOTES
-LabStartup.ps1 - March 23, 2016
+LabStartup.ps1 - May 2, 2016
 * A majority of the functions are loaded via C:\HOL\LabStartupFunctons.ps1
 * URLs must begin with http:// or https:// (with valid certificate)
 * The IP address on the eth5 NIC of the vpodrouter is set using SSH (plink.exe) 
