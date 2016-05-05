@@ -1,5 +1,5 @@
 <#
-	LabStartup Functions - 2016-05-02
+	LabStartup Functions - 2016-05-05
 #>
 
 # Bypass SSL certificate verification (tesing)
@@ -578,7 +578,19 @@ Function LabFail ( [string] $message ) {
 Function Check-Datastore ([string] $dsline, [REF]$result ) 
 {
 	($server,$datastoreName) = $dsline.Split(":")
-	$ds = Get-Datastore $datastoreName
+
+	Do {
+		Try{ 
+			$ds = Get-Datastore $datastoreName -ErrorAction 1
+		}
+		Catch {
+			#rescan on each host
+			Write-Host "-> $datastoreName not found, attempting rescan"
+			Get-VMHost | Get-VMhostStorage -RescanAllHba -RescanVmfs | Out-Null
+			LabStartup-Sleep 10
+		}
+	} Until ( $ds -ne $null )
+
 	If ( $ds.State -eq "Available" ) {
 		Try {
 			New-PSDrive -Name "ds" -PsProvider VimDatastore -Root "\" -Datastore $ds | Out-Null
