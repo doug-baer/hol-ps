@@ -590,6 +590,10 @@ Function Check-Datastore ([string] $dsline, [REF]$result )
 			LabStartup-Sleep 10
 		}
 	} Until ( $ds -ne $null )
+	
+	If ( $ds.Type -eq "VMFS" ) { # rescan for VMFS LUNs since iSCSI on FreeNAS needs it.
+		Get-VMHost | Get-VMhostStorage -RescanAllHba -RescanVmfs | Out-Null
+	}
 
 	If ( $ds.State -eq "Available" ) {
 		Try {
@@ -604,9 +608,9 @@ Function Check-Datastore ([string] $dsline, [REF]$result )
 			$result.value = "fail"
 			# fail lab at this point?
 		}
-	} Else {
-		If( $Server -ne 'VSAN' ) {
-			Write-Output "$datastoreName is not available. Rebooting $server..."
+	} Else {  
+		If( $ds.Type -eq "NFS") {  # reboot FreeNAS only if NFS
+			Write-Output "NFS $datastoreName is not available. Rebooting $server..."
 			$lcmd = "init 6 2>&1"
 			$msg = Invoke-Plink -remoteHost $server -login $linuxuser -passwd $linuxpassword -command $lcmd
 			If ( $msg -eq $null ) { 
@@ -620,14 +624,20 @@ Function Check-Datastore ([string] $dsline, [REF]$result )
 			}
 		}
 		# how long does it take for this to succeed after storage reboot?
-		Write-Host "Pausing another 60 seconds for $server to come up..."
+		Write-Host "Pausing another 60 seconds for $server $datastoreName to come up..."
 		LabStartup-Sleep 60
+
 		Do { 
-				Write-Host "Datastore $datastoreName not available yet..."
-				$ds = Get-Datastore $datastoreName
-				LabStartup-Sleep $sleepSeconds
+			Write-Host "Datastore $datastoreName not available yet..."
+			$ds = Get-Datastore $datastoreName
+			If ( $ds.Type -eq "VMFS" ) {
+				Get-VMHost | Get-VMhostStorage -RescanAllHba -RescanVmfs | Out-Null
+			}
+			LabStartup-Sleep $sleepSeconds
 		} Until ($ds.State -eq "Available")
+		
 		Write-Host "Datastore $datastoreName appears to be available now..."
+		
 		Try {
 			New-PSDrive -Name "ds" -PsProvider VimDatastore -Root "\" -Datastore $ds
 			((Get-ChildItem ds: -ErrorAction 1 | Measure-Object).Count -gt 0)
