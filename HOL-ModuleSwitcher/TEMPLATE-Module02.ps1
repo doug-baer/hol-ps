@@ -28,7 +28,7 @@ Function ModuleStart {
 		
 	#TODO: Write your Module START code here
 
-	$mod2VMs = ('db-01a:vcsa-01a.corp.local','web-01a:vcsa-01a.corp.local')
+	$mod2VMs = ('db-01a:vcsa-01a.corp.local','app-01a:vcsa-01a.corp.local','web-01a:vcsa-01a.corp.local')
 	
 	Connect-VC 'vcsa-01a.corp.local' 'administrator@corp.local' 'VMware1!' ([REF]$result)
 
@@ -123,6 +123,8 @@ Function LoadPowerCLI {
 		Break
 	} 
 } #LoadPowerCLI
+
+
 
 ##########################################################################
 # The main program logic
