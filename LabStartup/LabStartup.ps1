@@ -111,9 +111,10 @@ $ESXiHosts = @(
 
 # datastore names in vCenter(s)
 $datastores = @(
-	'VSAN:RegionA01-VSAN-COMP01'
+	#'VSAN:RegionA01-VSAN-COMP01'
 	#'VSAN:RegionB01-VSAN-COMP01'
-	#'stga-01a.corp.local:ds-site-a-nfs01'
+	'stga-01a.corp.local:RegionA01-ISCSI01-COMP01'
+	#'stga-01a.corp.local:RegionB01-ISCSI01-COMP01'
 )
 
 # Windows Services to be checked / started
