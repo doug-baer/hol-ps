@@ -4,7 +4,7 @@
 
 .DESCRIPTION	
 
-.NOTES				Version 1.18 - 28 April 2016
+.NOTES				Version 1.19 - 3 June 2016
  
 .EXAMPLE			.\ModuleSwitcher.ps1
 .EXAMPLE			.\ModuleSwitcher.ps1 -Force
@@ -13,7 +13,7 @@
 .INPUTS				Provide scripts with names like "Module02.ps1" in the $ModuleSwitchDirPath
 							** Note the two-digit value in the script names **
 							Each provided script should take two parameters: "START" and "STOP"
-					<ModuleSwitchDirPath>\moduleMessages.txt
+							<ModuleSwitchDirPath>\moduleMessages.txt
 
 .OUTPUTS			Each script is launched in its own PS console
 					C:\HOL\ModuleSwitcher\currentMessage.txt - GLOBAL file for any panel
@@ -22,6 +22,7 @@
 #>
 PARAM(
 	[string]$ModuleSwitchDirPath = 'C:\HOL\ModuleSwitcher',
+	[string]$PanelName,
 	[switch]$Force
 )
 
@@ -34,6 +35,9 @@ if( Test-Path $ModuleSwitchDirPath ) {
 }
 
 $ModuleSwitchDirName = $ModuleSwitchDirPath | Split-Path -Leaf
+if( $PanelName.Length -eq 0 ) {
+	$PanelName = $ModuleSwitchDirName
+}
 
 #read the Module Descriptions: one message per line
 $ModuleMessagesFile = Join-Path $ModuleSwitchDirPath 'moduleMessages.txt'
@@ -53,7 +57,7 @@ $activeModuleFile = Join-Path $ModuleSwitchDirPath 'currentModule.txt'
 #this one is a static path since DesktopInfo needs to point to ONE location
 $activeModuleMessageFile = 'C:\HOL\ModuleSwitcher\currentMessage.txt'
 
-# Initially, module 1 is the active module 
+# Initially, there is no active module 
 #... unless there is a state file which was created within the last 24 hours
 if( Test-Path $activeModuleFile ) {
 	$age = ( (Get-Date) - (Get-Item $activeModuleFile).LastWriteTime ).Days
@@ -62,7 +66,7 @@ if( Test-Path $activeModuleFile ) {
 }
 
 if( ($age -ge 1) -or $Force ) {
-	$global:activeModule = 1
+	$global:activeModule = 0
 	Set-Content -Path $activeModuleFile -Value $global:activeModule
 	if( $writeDescriptions ) { 
 		Set-Content -Path $activeModuleMessageFile -Value $ModuleMessages[$global:activeModule - 1] 
@@ -197,20 +201,23 @@ function DisplayModuleSwitcherForm {
 				$numActiveModule = $global:activeModule
 			}
 
-			# the currently active module's script, so we can call its STOP action
-			$global:activeModuleScriptPath = ($ModuleScripts | where { $_.Name -match "$numActiveModule" | select -first 1 }).FullName
-			try { 
-				if( Test-Path $global:activeModuleScriptPath ) {
-					#do this and then wait for completion prior to continuing
-					Start-Process powershell -ArgumentList "-command $global:activeModuleScriptPath 'STOP'" -Wait
+			if( $numActiveModule -ne "00" ) {
+
+				# the currently active module's script, so we can call its STOP action
+				$global:activeModuleScriptPath = ($ModuleScripts | where { $_.Name -match "$numActiveModule" | select -first 1 }).FullName
+				try { 
+					if( Test-Path $global:activeModuleScriptPath ) {
+						#do this and then wait for completion prior to continuing
+						Start-Process powershell -ArgumentList "-command $global:activeModuleScriptPath 'STOP'" -Wait
+					}
+				}
+				catch {
+					$wshell = New-Object -ComObject Wscript.Shell
+					$wshell.Popup("Error: Unable to Locate script $global:activeModuleScriptPath",0,"Dang!",0x1)
 				}
 			}
-			catch {
-				$wshell = New-Object -ComObject Wscript.Shell
-				$wshell.Popup("Error: Unable to Locate script $global:activeModuleScriptPath",0,"Dang!",0x1)
-			}
 		}
-
+		
 		try { 
 			if( Test-Path $ScriptPath ) {
 				Start-Process powershell -ArgumentList "-command $ScriptPath $buttonAction"
@@ -221,7 +228,7 @@ function DisplayModuleSwitcherForm {
 						$StartButtons[$buttonName].Enabled = $false
 					}
 					$statusBar1.Text = "No active module"
-					$global:activeModule = 1
+					$global:activeModule = 0
 				} else {
 					$global:activeModule = $thisButton
 					Set-Content -Path $activeModuleFile -Value $global:activeModule
@@ -246,7 +253,7 @@ function DisplayModuleSwitcherForm {
 	########################################################################
 	### Build the Form/Panel
 	
-	$moduleSwitcherForm.Text = "$ModuleSwitchDirName"
+	$moduleSwitcherForm.Text = $PanelName
 	$moduleSwitcherForm.Name = "moduleSwitcherForm"
 	$moduleSwitcherForm.DataBindings.DefaultDataSourceUpdateMode = 0
 	$System_Drawing_Size = New-Object System.Drawing.Size
@@ -265,7 +272,7 @@ function DisplayModuleSwitcherForm {
 	$System_Drawing_Size.Height = 30
 	$label1.Size = $System_Drawing_Size
 	if( $ModuleSwitchDirName -ne 'ModuleSwitcher') {
-		$label1.Text = "$ModuleSwitchDirName Module Switcher"
+		$label1.Text = $PanelName
 	} else {
 		$label1.Text = "Hands-on Labs Module Switcher"
 	}
@@ -284,7 +291,7 @@ function DisplayModuleSwitcherForm {
 	
 	$statusBar1 = New-Object System.Windows.Forms.StatusBar
 	$statusBar1.Name = "statusBar1"
-	$statusBar1.Text = "Active module: 1"
+	$statusBar1.Text = "No active module"
 	$System_Drawing_Size = New-Object System.Drawing.Size
 	$System_Drawing_Size.Width = $MainFormWidth
 	$System_Drawing_Size.Height = 20
@@ -340,13 +347,9 @@ function DisplayModuleSwitcherForm {
 		(Get-Variable $("m" + $i + "Start")).Value.Size = $System_Drawing_Size
 		(Get-Variable $("m" + $i + "Start")).Value.UseVisualStyleBackColor = $True
 		
-		#Special Case: Module 1 is already active, so can only be Stopped
-		if( $i -eq 1 ) {
-			(Get-Variable $("m" + $i + "Start")).Value.Text = "Stop"
-		} else {
-			(Get-Variable $("m" + $i + "Start")).Value.Text = "Start"
-		}
-		
+		# Removed Special behavior 3 Jun 2016
+		(Get-Variable $("m" + $i + "Start")).Value.Text = "Start"
+
 		$System_Drawing_Point = New-Object System.Drawing.Point
 		$System_Drawing_Point.X = $BUTTON_OFFSET_X
 		$System_Drawing_Point.Y = $BUTTON_OFFSET_Y
