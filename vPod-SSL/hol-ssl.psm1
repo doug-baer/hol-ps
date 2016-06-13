@@ -1,10 +1,11 @@
 ###
 # HOL SSL Certificate Module
 #
-# Version 0.7 - 12 January 2016
-#	 !! WARNING: VERY UGLY CODE PRESENT
+# Version 0.8 - 13 June 2016
 #
 # Doug Baer 
+# 
+# Thanks to Burke Azbill for making the output of New-HostSslCertificateFromCsr more NSX-friendly
 #
 
 <#
@@ -71,86 +72,86 @@ Function New-HostSslCertificate {
 	This one takes IPv4 addresses ONLY
 #>
 	PARAM(
-	# The short name of the vCenter Server
-	$HOST_SHORTNAME = $(throw "need -HOST_SHORTNAME"),
-	# The DNS name of the ESXi host
-	$HOST_FQDN = "$HOST_SHORTNAME.corp.local",
-	# The IP address of the ESXi host
-	$HOST_IPv4 = $(throw "need -HOST_IPv4"),
-	# The path to the CA certificate
-	$CA_Certificate = "c:\hol\ssl\CA-Certificate.cer"
+		# The short name of the vCenter Server
+		$HOST_SHORTNAME = $(throw "need -HOST_SHORTNAME"),
+		# The DNS name of the ESXi host
+		$HOST_FQDN = "$HOST_SHORTNAME.corp.local",
+		# The IP address of the ESXi host
+		$HOST_IPv4 = $(throw "need -HOST_IPv4"),
+		# The path to the CA certificate
+		$CA_Certificate = "c:\hol\ssl\CA-Certificate.cer"
 	)
 	PROCESS {
-	# The Certificate Authority Name
-	$CA_Name = "controlcenter.corp.local\CONTROLCENTER-CA"
-	# The name of the Certificate template to use
-	$CA_Template = "CertificateTemplate:VMwareCertificate"
-	# Administrative email to use in the certificate
-	$AdminEmail = "administrator@corp.local"
-	# A working directory under which the certificates and folders will be created
-	$WorkingDir = "c:\hol\ssl\host\$HOST_SHORTNAME"
-	#Our Service Name
-	$Service = "Hands-on Labs"
-	# The path to the openssl executable
-	$OpenSSLExe =	"c:\hol\ssl\ssl-certificate-updater-tool-1308332\tools\openssl\openssl.exe"
-	
-	if (!(Test-Path $OpenSSLExe)) {throw "$OpenSSLExe required"}
-	New-Alias -Name OpenSSL $OpenSSLExe
-	
-	$RequestTemplate = "[ req ]
-	default_md = sha512
-	default_bits = 2048
-	default_keyfile = rui.key
-	distinguished_name = req_distinguished_name
-	encrypt_key = no
-	prompt = no
-	string_mask = nombstr
-	req_extensions = v3_req
-	input_password = testpassword
-	output_password = testpassword
-	[ v3_req ]
-	basicConstraints = CA:false
-	keyUsage = digitalSignature, keyEncipherment, dataEncipherment
-	extendedKeyUsage = serverAuth, clientAuth
-	subjectAltName = DNS:SHORTNAMEREPLACE, IP: IPv4ADDRESSREPLACE, DNS: FQDNREPLACE
-	[ req_distinguished_name ]
-	countryName = US
-	stateOrProvinceName = California
-	localityName = Palo Alto
-	0.organizationName = VMware
-	organizationalUnitName = ORGNAMEREPLACE
-	commonName = FQDNREPLACE
-	emailAddress = ADMINEMAILREPLACE
-	"
-	if(!(Test-Path $WorkingDir)) {
-		New-Item $WorkingDir -Type Directory
-	}
-	
-	Set-Location $WorkingDir
-	
-	Write-Debug "$HOST_SHORTNAME : Writing Template"
-	$Out = ((((($RequestTemplate -replace "FQDNREPLACE", $HOST_FQDN) -replace "SHORTNAMEREPLACE", $HOST_SHORTNAME) -replace "ORGNAMEREPLACE", $Service) -replace "ADMINEMAILREPLACE", $AdminEmail) -replace "IPv4ADDRESSREPLACE", $HOST_IPv4) | Out-File "$WorkingDir\$HOST_SHORTNAME.cfg" -Encoding Default -Force
-	
-	Write-Debug "$HOST_SHORTNAME : Generating CSR"
-	OpenSSL req -new -nodes -out "$WorkingDir\$HOST_SHORTNAME.csr" -keyout "$WorkingDir\rui-orig.key" -config "$WorkingDir\$HOST_SHORTNAME.cfg"
-	
-	Write-Debug "$HOST_SHORTNAME : Converting Private Key to RSA"
-	OpenSSL rsa -in "$WorkingDir\rui-orig.key" -out "$WorkingDir\rui.key"
-	
-	Write-Debug "$HOST_SHORTNAME : Submitting to $CA_Name"
-	certreq -submit -attrib $CA_Template -config "$CA_Name" "$HOST_SHORTNAME.csr" "$WorkingDir\rui.crt"
-	
-	Write-Debug "$HOST_SHORTNAME : Generating PEM / Cert chain with Key"
-	Copy-Item "$WorkingDir\rui.key" "$WorkingDir\rui.pem"
-	Get-Content "$WorkingDir\rui.crt" | Out-File -Append -Encoding ASCII	"$WorkingDir\rui.pem"
-	Get-Content "$CA_Certificate" | Out-File -Append -Encoding ASCII	"$WorkingDir\rui.pem"
-	
-	Write-Debug "$HOST_SHORTNAME : Generating PFX"
-	OpenSSL pkcs12 -export -in "$WorkingDir\rui.crt" -inkey "$WorkingDir\rui.key" -certfile "$CA_Certificate" -name "rui" -passout pass:testpassword -out "$WorkingDir\rui.pfx"
-	
-	Set-Location $WorkingDir
-	Write-Host "Finished"
-	Write-Host "NOTE: The password on the PFX is 'testpassword'"
+		# The Certificate Authority Name
+		$CA_Name = "controlcenter.corp.local\CONTROLCENTER-CA"
+		# The name of the Certificate template to use
+		$CA_Template = "CertificateTemplate:VMwareCertificate"
+		# Administrative email to use in the certificate
+		$AdminEmail = "administrator@corp.local"
+		# A working directory under which the certificates and folders will be created
+		$WorkingDir = "c:\hol\ssl\host\$HOST_SHORTNAME"
+		#Our Service Name
+		$Service = "Hands-on Labs"
+		# The path to the openssl executable
+		$OpenSSLExe =	"c:\hol\ssl\ssl-certificate-updater-tool-1308332\tools\openssl\openssl.exe"
+		
+		if (!(Test-Path $OpenSSLExe)) {throw "$OpenSSLExe required"}
+		New-Alias -Name OpenSSL $OpenSSLExe
+		
+		$RequestTemplate = "[ req ]
+default_md = sha512
+default_bits = 2048
+default_keyfile = rui.key
+distinguished_name = req_distinguished_name
+encrypt_key = no
+prompt = no
+string_mask = nombstr
+req_extensions = v3_req
+input_password = testpassword
+output_password = testpassword
+[ v3_req ]
+basicConstraints = CA:false
+keyUsage = digitalSignature, keyEncipherment, dataEncipherment
+extendedKeyUsage = serverAuth, clientAuth
+subjectAltName = DNS:SHORTNAMEREPLACE, IP: IPv4ADDRESSREPLACE, DNS: FQDNREPLACE
+[ req_distinguished_name ]
+countryName = US
+stateOrProvinceName = California
+localityName = Palo Alto
+0.organizationName = VMware
+organizationalUnitName = ORGNAMEREPLACE
+commonName = FQDNREPLACE
+emailAddress = ADMINEMAILREPLACE
+"
+		if(!(Test-Path $WorkingDir)) {
+			New-Item $WorkingDir -Type Directory
+		}
+		
+		Set-Location $WorkingDir
+		
+		Write-Debug "$HOST_SHORTNAME : Writing Template"
+		$Out = ((((($RequestTemplate -replace "FQDNREPLACE", $HOST_FQDN) -replace "SHORTNAMEREPLACE", $HOST_SHORTNAME) -replace "ORGNAMEREPLACE", $Service) -replace "ADMINEMAILREPLACE", $AdminEmail) -replace "IPv4ADDRESSREPLACE", $HOST_IPv4) | Out-File "$WorkingDir\$HOST_SHORTNAME.cfg" -Encoding Default -Force
+		
+		Write-Debug "$HOST_SHORTNAME : Generating CSR"
+		OpenSSL req -new -nodes -out "$WorkingDir\$HOST_SHORTNAME.csr" -keyout "$WorkingDir\rui-orig.key" -config "$WorkingDir\$HOST_SHORTNAME.cfg"
+		
+		Write-Debug "$HOST_SHORTNAME : Converting Private Key to RSA"
+		OpenSSL rsa -in "$WorkingDir\rui-orig.key" -out "$WorkingDir\rui.key"
+		
+		Write-Debug "$HOST_SHORTNAME : Submitting to $CA_Name"
+		certreq -submit -attrib $CA_Template -config "$CA_Name" "$HOST_SHORTNAME.csr" "$WorkingDir\rui.crt"
+		
+		Write-Debug "$HOST_SHORTNAME : Generating PEM / Cert chain with Key"
+		Copy-Item "$WorkingDir\rui.key" "$WorkingDir\rui.pem"
+		Get-Content "$WorkingDir\rui.crt" | Out-File -Append -Encoding ASCII	"$WorkingDir\rui.pem"
+		Get-Content "$CA_Certificate" | Out-File -Append -Encoding ASCII	"$WorkingDir\rui.pem"
+		
+		Write-Debug "$HOST_SHORTNAME : Generating PFX"
+		OpenSSL pkcs12 -export -in "$WorkingDir\rui.crt" -inkey "$WorkingDir\rui.key" -certfile "$CA_Certificate" -name "rui" -passout pass:testpassword -out "$WorkingDir\rui.pfx"
+		
+		Set-Location $WorkingDir
+		Write-Host "Finished"
+		Write-Host "NOTE: The password on the PFX is 'testpassword'"
 	}
 } #New-HostSslCertificate
 
@@ -166,28 +167,37 @@ Function New-HostSslCertificateFromCsr
 
 #>
 	PARAM(
-	# The CSR File
-	$CSR = $(throw "requires path to CSR file")
+		# The CSR File
+		$CSR = $(throw "requires path to CSR file"),
+		# The path to the CA certificate
+		$CA_Certificate = "C:\hol\ssl\CA-Certificate.cer"
 	)
 	PROCESS {
-	if (!(Test-Path $CSR)) {throw "$CSR not found"}
-	$csrFile = Get-Item $CSR
-	# A working directory under which the certificate will be created
-	$WorkingDir = $CsrFile.DirectoryName
-	# The Certificate Authority Name
-	$CA_Name = "controlcenter.corp.local\CONTROLCENTER-CA"
-	# The name of the Certificate template to use
-	$CA_Template = "CertificateTemplate:VMwareCertificate"
-	 
-	if(!(Test-Path $WorkingDir)) {
-		New-Item $WorkingDir -Type Directory
-	}
-	Set-Location $WorkingDir
-	
-	Write-Debug "Submitting to $CA_Name"
-	$certFile = Join-Path $WorkingDir $($csrFile.BaseName + ".crt")
-	certreq -submit -attrib $CA_Template -config "$CA_Name" $csrFile $certFile
-	Write-Host "Finished"
+		if (!(Test-Path $CSR)) {throw "$CSR not found"}
+		$csrFile = Get-Item $CSR
+		# A working directory under which the certificate will be created
+		$WorkingDir = $CsrFile.DirectoryName
+		# The Certificate Authority Name
+		$CA_Name = "controlcenter.corp.local\CONTROLCENTER-CA"
+		# The name of the Certificate template to use
+		$CA_Template = "CertificateTemplate:VMwareCertificate"
+		 
+		if(!(Test-Path $WorkingDir)) {
+			New-Item $WorkingDir -Type Directory
+		}
+		Set-Location $WorkingDir
+		
+		Write-Debug "Submitting to $CA_Name"
+		$certFile = Join-Path $WorkingDir $($csrFile.BaseName + ".crt")
+		$pemFile  = Join-Path $WorkingDir $($csrFile.BaseName + ".cer")
+		certreq -submit -attrib $CA_Template -config "$CA_Name" $csrFile $certFile
+		
+		Write-Debug "$HOST_SHORTNAME : Generating PEM / Cert chain with Key"
+		Copy-Item $certFile $pemFile
+		
+		Get-Content "$CA_Certificate" | Out-File -Append -Encoding ASCII	$pemFile
+		
+		Write-Host "Finished"
 	}
 } #New-HostSslCertificateFromCsr
 
@@ -204,76 +214,76 @@ Function New-WildSslCertificate {
 
 #>
 	PARAM(
-	# The DNS name of the ESXi host
-	$WILD_FQDN = '*.corp.local',
-	# The CA's certificate
-	$CA_Certificate = "c:\hol\ssl\CA-Certificate.cer"
+		# The DNS name of the ESXi host
+		$WILD_FQDN = '*.corp.local',
+		# The CA's certificate
+		$CA_Certificate = "c:\hol\ssl\CA-Certificate.cer"
 	)
 	PROCESS {
-	# The Certificate Authority Name
-	$CA_Name = "controlcenter.corp.local\CONTROLCENTER-CA"
-	# The name of the Certificate template to use
-	$CA_Template = "CertificateTemplate:VMwareCertificate"
-	# Administrative email to use in the certificate
-	$AdminEmail = "administrator@corp.local"
-	# A working directory under which the certificates and folders will be created
-	$WorkingDir = "c:\hol\ssl\wild"
-	#Our Service Name
-	$Service = "Hands-on Labs"
-	# The path to the openssl executable
-	$OpenSSLExe =	"c:\hol\ssl\ssl-certificate-updater-tool-1308332\tools\openssl\openssl.exe"
-	 
-	if (!(Test-Path $OpenSSLExe)) {throw "$OpenSSLExe required"}
-	New-Alias -Name OpenSSL $OpenSSLExe
-	 
-	$RequestTemplate = "[ req ]
-	default_md = sha512
-	default_bits = 2048
-	default_keyfile = rui.key
-	distinguished_name = req_distinguished_name
-	encrypt_key = no
-	prompt = no
-	string_mask = nombstr
-	req_extensions = v3_req
-	input_password = testpassword
-	output_password = testpassword
-	[ v3_req ]
-	basicConstraints = CA:false
-	keyUsage = digitalSignature, keyEncipherment, dataEncipherment
-	extendedKeyUsage = serverAuth, clientAuth
-	subjectAltName = DNS:FQDNREPLACE
-	[ req_distinguished_name ]
-	countryName = US
-	stateOrProvinceName = California
-	localityName = Palo Alto
-	0.organizationName = VMware
-	organizationalUnitName = ORGNAMEREPLACE
-	commonName = FQDNREPLACE
-	emailAddress = ADMINEMAILREPLACE
-	"
-	if(!(Test-Path $WorkingDir)) {
-		New-Item $WorkingDir -Type Directory
-	}
-	 
-	Set-Location $WorkingDir 
-	Write-Debug "$WILD_FQDN : Writing Template"
-	$Out = ((($RequestTemplate -replace "FQDNREPLACE", $WILD_FQDN) -replace "ORGNAMEREPLACE", $Service) -replace "ADMINEMAILREPLACE", $AdminEmail)	| Out-File "$WorkingDir\wild.cfg" -Encoding Default -Force
+		# The Certificate Authority Name
+		$CA_Name = "controlcenter.corp.local\CONTROLCENTER-CA"
+		# The name of the Certificate template to use
+		$CA_Template = "CertificateTemplate:VMwareCertificate"
+		# Administrative email to use in the certificate
+		$AdminEmail = "administrator@corp.local"
+		# A working directory under which the certificates and folders will be created
+		$WorkingDir = "c:\hol\ssl\wild"
+		#Our Service Name
+		$Service = "Hands-on Labs"
+		# The path to the openssl executable
+		$OpenSSLExe =	"c:\hol\ssl\ssl-certificate-updater-tool-1308332\tools\openssl\openssl.exe"
 		 
-	Write-Debug "$WILD_FQDN : Generating CSR"
-	OpenSSL req -new -nodes -out "$WorkingDir\wild.csr" -keyout "$WorkingDir\rui-orig.key" -config "$WorkingDir\wild.cfg"
+		if (!(Test-Path $OpenSSLExe)) {throw "$OpenSSLExe required"}
+		New-Alias -Name OpenSSL $OpenSSLExe
+		 
+		$RequestTemplate = "[ req ]
+default_md = sha512
+default_bits = 2048
+default_keyfile = rui.key
+distinguished_name = req_distinguished_name
+encrypt_key = no
+prompt = no
+string_mask = nombstr
+req_extensions = v3_req
+input_password = testpassword
+output_password = testpassword
+[ v3_req ]
+basicConstraints = CA:false
+keyUsage = digitalSignature, keyEncipherment, dataEncipherment
+extendedKeyUsage = serverAuth, clientAuth
+subjectAltName = DNS:FQDNREPLACE
+[ req_distinguished_name ]
+countryName = US
+stateOrProvinceName = California
+localityName = Palo Alto
+0.organizationName = VMware
+organizationalUnitName = ORGNAMEREPLACE
+commonName = FQDNREPLACE
+emailAddress = ADMINEMAILREPLACE
+"
+		if(!(Test-Path $WorkingDir)) {
+			New-Item $WorkingDir -Type Directory
+		}
+		 
+		Set-Location $WorkingDir 
+		Write-Debug "$WILD_FQDN : Writing Template"
+		$Out = ((($RequestTemplate -replace "FQDNREPLACE", $WILD_FQDN) -replace "ORGNAMEREPLACE", $Service) -replace "ADMINEMAILREPLACE", $AdminEmail)	| Out-File "$WorkingDir\wild.cfg" -Encoding Default -Force
+			 
+		Write-Debug "$WILD_FQDN : Generating CSR"
+		OpenSSL req -new -nodes -out "$WorkingDir\wild.csr" -keyout "$WorkingDir\rui-orig.key" -config "$WorkingDir\wild.cfg"
+		
+		Write-Debug "$WILD_FQDN : Converting Private Key to RSA"
+		OpenSSL rsa -in "$WorkingDir\rui-orig.key" -out "$WorkingDir\rui.key"
+		
+		Write-Debug "$WILD_FQDN : Submitting to $CA_Name"
+		certreq -submit -attrib $CA_Template -config "$CA_Name" "wild.csr" "$WorkingDir\rui.crt"
+		
+		Write-Debug "$WILD_FQDN : Generating PFX"
+		OpenSSL pkcs12 -export -in "$WorkingDir\rui.crt" -inkey "$WorkingDir\rui.key" -certfile "$CA_Certificate" -name "rui" -passout pass:testpassword -out "$WorkingDir\rui.pfx"
+		
+		Set-Location $WorkingDir
 	
-	Write-Debug "$WILD_FQDN : Converting Private Key to RSA"
-	OpenSSL rsa -in "$WorkingDir\rui-orig.key" -out "$WorkingDir\rui.key"
-	
-	Write-Debug "$WILD_FQDN : Submitting to $CA_Name"
-	certreq -submit -attrib $CA_Template -config "$CA_Name" "wild.csr" "$WorkingDir\rui.crt"
-	
-	Write-Debug "$WILD_FQDN : Generating PFX"
-	OpenSSL pkcs12 -export -in "$WorkingDir\rui.crt" -inkey "$WorkingDir\rui.key" -certfile "$CA_Certificate" -name "rui" -passout pass:testpassword -out "$WorkingDir\rui.pfx"
-	
-	Set-Location $WorkingDir
-
-	Write-Host "Finished"
-	Write-Host "NOTE: The password on the PFX is 'testpassword'"
+		Write-Host "Finished"
+		Write-Host "NOTE: The password on the PFX is 'testpassword'"
 	}
 } #New-WildSslCertificate
