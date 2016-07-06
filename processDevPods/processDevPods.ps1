@@ -108,28 +108,76 @@ Catch {
 
 # BEGIN HERE
 
+# Change these appropriately
+
 $cloud = 'vcore1-us03.oc.vmware.com'
 $devOrgName = 'HOL-Dev'
 $devUser = 'bcall'
+$wipCatalogName = 'HOL-Staging'
 $wipCatalogName = '_WorkInProgress'
-#$wipCatalogName = 'HOL-Staging'
 $stageCatalogName = 'HOL-Staging'
+#$stageCatalogName = 'Dell Staging ONLY'
+#$stageCatalogName = 'HOL 2016 Released Labs'
 $prodOrgName = 'HOL'
 $prodUser = 'bcall-local'
 $prodCatalogName = 'HOL-Masters'
 
 $input = Get-Content $args[0]
-$pass = $input[0]
+# TODO: set your secret password here
+$pass = "CHANGEME"
 
-For ($i=1; $i -lt $input.Count; $i++) {
-	$vPodName = $input[$i]
+Try {
+	Disconnect-CIServer * -Confirm:$false
+} Catch {}
+
+For ($i=0; $i -lt $input.Count; $i++) {
+
+	# PowerShell fun with input lines (if only one line it's a special case. sigh)
+	If ( $input.Count -eq 1 ) { $vPodName = $input }
+	Else  { $vPodName = $input[$i] }
 	
 	# move vPod from _WorkInProgress to HOL-Staging in HOL-Dev
-	Connect-Ciserver $cloud -org $devOrgName -user $devUser -password $pass
+	Connect-CIServer $cloud -org $devOrgName -user $devUser -password $pass
+
 	$wipCatalog = Get-Catalog $wipCatalogName
 	$stageCatalog = Get-Catalog $stageCatalogName
+	Try {
+		$vpod = Get-CIVAppTemplate -Name $vPodName -ErrorAction 1
+	} Catch {
+		Write-Host "No such vApp Template $vPodName exists - skipping..."
+		Continue
+	}
 	
-	$vpod = Get-CIVAppTemplate $vPodName -Catalog $wipCatalog
+	If ($vpod.length -gt 1 ) {
+		Write-Host "More than one $vPodName vApp Template exists - skipping..."
+		Continue
+	}
+	
+	If ( $vpod.CustomizeOnInstantiate ) {
+		Write-Host "$vpod is NOT set to make identical - skipping..."
+		Continue
+	} Else {
+		Write-Host "$vpod is set to make identical and will be processed..."
+	}
+	
+	# check each VM for suspended VMs.
+	$VMs = Get-CIVMTemplate -VApp $vpod
+	$skip = $False
+	Foreach ($vm in $VMs) {
+		If ($vm.Status -ne 'PoweredOff') {
+				Write-Host "$vpod $vm.Name is not powered off"
+				$skip = $True
+				Continue
+		}
+	}
+	
+	If ( $skip ) {
+		Write-Host "$vpod has a VM that is not powered off - skipping..."
+		Continue
+	} Else {
+		Write-Host "$vpod VMs are all powered off.  Ready to process..."
+	}
+	
 	$description = $vpod.Description
 	
 	$catalogItem =  $wipCatalog.ExtensionData.CatalogItems.CatalogItem | where { $_.Name -eq $vPodName }
@@ -139,16 +187,16 @@ For ($i=1; $i -lt $input.Count; $i++) {
 	$ref.id = $catalogItem.id
 	$ref.type = $catalogItem.type
 	
-	If ( $wipCatalogName -ne $stageCatalogName ) {
+	If ( $vpod.Catalog.Name -eq $wipCatalogName ) {
 
 		Write-Host "Moving $vPodName from $wipCatalogName to $stageCatalogName..."
 		$stageCatalog.ExtensionData.Move( $ref, $vPodName, $description )
 	
 	}
-	Disconnect-ciserver * -Confirm:$false
+	Disconnect-CIServer * -Confirm:$false
 	
 	# copy vPod from public HOL-Staging to HOL-Masters in WDC1 HOL
-	Connect-Ciserver $cloud -org $prodOrgName -user $prodUser -password $pass
+	Connect-CIServer $cloud -org $prodOrgName -user $prodUser -password $pass
 	$stageCatalog = Get-Catalog $stageCatalogName
 	$prodCatalog = Get-Catalog $prodCatalogName
 	
@@ -161,6 +209,7 @@ For ($i=1; $i -lt $input.Count; $i++) {
 
 	Write-Host "Copying $vPodName from $stageCatalogName to $prodCatalogName..."
 	$prodCatalog.ExtensionData.Copy( $ref, $vPodName, $description )
+
 	
 	# shadow vPod in WDC1
 	Write-Host "Shadowing $vPodName..."
