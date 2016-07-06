@@ -1,2 +1,1 @@
-secret
 HOL-PRT-1672-v1.1
