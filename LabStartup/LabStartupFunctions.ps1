@@ -498,6 +498,7 @@ Function ManageWindowsService ([string] $action, [string]$server, [string]$servi
 	}
 	Catch {
 		Write-Host "Failed to $action $service on $server"
+		LabStartup-Sleep $waitsec  # pause even if Try fails
 		$result.value = "fail"
 	}
 } #End ManageWindowsService
