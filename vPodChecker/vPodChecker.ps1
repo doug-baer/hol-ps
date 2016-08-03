@@ -3,33 +3,30 @@
 .SYNOPSIS			This script is intended to run some standard config validation
 							checks for Hands-on Labs vPods. It also attempts to remediate
 							some simple and common misconfigurations like uuid.action and
-							keyboard.typematicMinDelay on Linux vVMs
+							keyboard.typematicMinDelay on Linux vVMs as well as CPU and Memory
+							reservations.
 
 .DESCRIPTION	Check vPod configuration and remediate some misconfigurations
 
-.NOTES				Requires VMware PowerCLI -- tested with v6.0u1
-							Version 1.2 - 8 March 2016
-							Added path portion to URL for certificate retrieval
-							Added TLS 1.2 to permitted security protocols
+.NOTES				Requires PowerCLI -- tested with v6.0u1
+							Version 1.01 - 24 Februrary 2016
+							Version 1.02 - 3 August 2016
  
 .EXAMPLE			.\vPodChecker.ps1
 
-.INPUTS				Manual population of $URLs list below
+.INPUTS				None
 
 .OUTPUTS			Interactive: all output is written to console
 
 #>
 
 #####Check SSL certificates on PROVIDED links
-## USER must provide this list based on what is in the pod
-## Start by MANUALLY populating this list from the labStartup.ps1 file in the pod 
-## We'll filter out non-https links before testing
+## USER must provide this list based on what is in your pod
+## Start by pulling this array from the labStartup file. We'll filter out non-https links
 $URLs = @{
 	'https://vcsa-01a.corp.local:9443/vsphere-client/' = 'vSphere Web Client'
-	'https://vcsa-01a.corp.local/vsphere-client/' = 'vSphere Web Client'
 	'http://stga-01a.corp.local/account/login' = 'FreeNAS'
-	'https://psc-01a.corp.local/' = 'Platform' #this one fails with a 503 in some pods (?)
-	'https://psc-01a.corp.local/websso/' = 'Platform'
+	#'https://psc-01a.corp.local/' = 'Platform'
 	}
 
 $urlsToTest = $URLs.Keys | where { $_ -match 'https' } 
@@ -47,11 +44,23 @@ $password = 'VMware1!'
 
 $sleepSeconds = 10
 
+# calculating ending year based on today's date
+$a = Get-Date
+If ( $a.Month -lt 6 )  { # Spring Release dev cycle (Jan to May)
+	$minYear = $a.Year # end of this year
+} Else { # VMworld dev cycle so end of next year
+	$minYear = $a.Year + 1
+}
+$maxYear = $minYear + 1
 # HOL licenses should NOT expire before this date
-$chkDateMin = Get-Date "01/01/2016 12:00:00 AM"
+$chkDateMin = Get-Date "01/01/$minYear 12:00:00 AM"
+Write-Host "HOL licenses should NOT expire before $chkDateMin"
 
 # HOL licenses should expire before this date
-$chkDateMax = Get-Date "01/28/2017 12:00:00 AM"
+$chkDateMax = Get-Date "01/28/$maxYear 12:00:00 AM"
+Write-Host "HOL licenses should expire before $chkDateMax"
+
+$input = Read-Host -Prompt "If these dates are acceptable, press a key to continue"
 
 $licensePass = $true
 
@@ -59,21 +68,11 @@ $licensePass = $true
 $result = ''
 
 #Certificate Validation
-$minValidDate = [datetime]"12/31/2016"
+$minValidDate = [datetime]"12/31/$minYear"
 $ExtraCertDetails = $false
 
-#The NTP server we want configured
-$ntpServer = '192.168.100.1'
+Write-Host "HOL SSL Certifcates should NOT expire before $minValidDate"
 
-
-#Automatically Remediate?
-if($args[0] -eq '-Fix') {
-	Write-Host -ForegroundColor Green "*** Remediation Active ***"
-	$autoRemediate = $true
-} else {
-	Write-Host "*** Reporting Only ***"
-	$autoRemediate = $false
-}
 
 ##############################################################################
 
@@ -91,11 +90,6 @@ Catch {
 #Disable SSL certificate validation checks... it's a Lab!
 $scvc = [System.Net.ServicePointManager]::ServerCertificateValidationCallback
 [System.Net.ServicePointManager]::ServerCertificateValidationCallback = {$true}
-
-#Add TLS1.2 to the default (SSLv3 and TLSv1)
-$sp = [System.Net.ServicePointManager]::SecurityProtocol
-[System.Net.ServicePointManager]::SecurityProtocol = ( $sp -bor [System.Net.SecurityProtocolType]::Tls12 )
-
 
 ##############################################################################
 
@@ -153,40 +147,35 @@ $sslReport = @()
 
 foreach( $url in $urlsToTest ) {
 
-	if( $url -like "https*" ) {
-		#Write-Host $url
+	If( $url -like "https*" ) {
+		#write-host $url
 		$h = [regex]::Replace($url, "https://([a-z\.0-9\-]+).*", '$1')
-		if( ($url.Split(':') | Measure-Object).Count -gt 2 ) {
+		If( ($url.Split(':') | Measure-Object).Count -gt 2 ) {
 			$p = [regex]::Replace($url, "https://[a-z\.0-9\-]+\:(\d+).*", '$1')
-		} else { $p =	443 }
+		} Else { $p =	443 }
 		#Write-Host $h on port $p
 
-		#Capture the path - some services only respond correctly on a specified path
-		$urlpath = [regex]::replace($url, "https://[a-z\.0-9\-]+\:*(\d*)(.*)", '$2')
-
-
-		if( $ExtraCertDetails ) {
+		If( $ExtraCertDetails ) {
 			$item = "" | select HostName, PortNum, CertName, Thumbprint, Issuer, EffectiveDate, ExpiryDate, DaysToExpire
-		} else {
+		} Else {
 			$item = "" | select HostName, PortNum, CertName, ExpiryDate, DaysToExpire, Issuer
 		}
 
 		$item.HostName = $h
 		$item.PortNum = $p
 
-		if( Test-TcpPort $h $p ) {
+		If (Test-TcpPort $h $p ) {
 			#Get the certificate from the host
-			$testurl = "https://$h" + ':' + $p + $urlpath
-			$wr = [Net.WebRequest]::Create($testurl)
+			$wr = [Net.WebRequest]::Create("https://$h" + ':' + $p)
 		
 			#The following request usually fails for one reason or another:
 			# untrusted (self-signed) cert or untrusted root CA are most common...
 			# we just want the cert info, so it usually doesn't matter
-			try {
+			Try { 
 				$response = $wr.GetResponse() 
 				#This sometimes results in an empty certificate... probably due to a redirection
-				if( $wr.ServicePoint.Certificate ) {
-					if( $ExtraCertDetails ) {
+				If( $wr.ServicePoint.Certificate ) {
+					If( $ExtraCertDetails ) {
 						$t = $wr.ServicePoint.Certificate.GetCertHashString()
 						$SslThumbprint = ([regex]::matches($t, '.{1,2}') | %{$_.value}) -join ':'
 						$item.Thumbprint = $SslThumbprint
@@ -197,19 +186,17 @@ foreach( $url in $urlsToTest ) {
 					$item.Issuer = $wr.ServicePoint.Certificate.Issuer
 					$item.ExpiryDate = $wr.ServicePoint.Certificate.GetExpirationDateString()
 					$validTime = New-Timespan -End $item.ExpiryDate -Start $minValidDate
-					if( $validTime.Days -lt 0 ) {
+					If( $validTime.Days -lt 0 ) {
 						$item.DaysToExpire = "$validTime.Days - *** EXPIRES EARLY *** "
-					} else {
+					} Else {
 						$item.DaysToExpire = $validTime.Days
 					}
 				}
 			}
-			catch {
-				$Exception = $Error[0].Exception.InnerException
-				Write-Host "Unable to get certificate for $h on $p"
-				Write-Host "Exception: $Exception"
+			Catch{
+				Write-Host "Unable to get certificate for $h on $port"
 			}
-			finally {
+			Finally {
 				if( $response ) {
 					$response.Close()
 					Remove-Variable response
@@ -239,29 +226,10 @@ foreach ($h in $allhosts) {
 	$row.NTPDRUNNING =	$ntpData.Running
 	$row.NTPDPOLICY	=	$ntpData.Policy
 	$row.NTPSERVER	 =	Get-VMHostNtpServer -VMHost $h
-	
-	if( ($row.NTPSERVER -ne $ntpServer) -and $autoRemediate ) {
-		Write-Host -ForegroundColor Green "Correcting NTP server"
-		Add-VMhostNtpserver -vmhost $h -ntpserver $ntpServer
-		Get-VMHostFirewallException  -vmh $h | where {$_.name -like "*NTP Client*" } | Set-VMHostFirewallException -Enabled:$true
-	}
-	
-	if( ($row.NTPDPOLICY -ne 'on') -and $autoRemediate ) {
-		Write-Host -ForegroundColor Green "Correcting NTP server policy"
-		Get-VMHostService -vmhost $h | Where {$_.key -eq "ntpd"} | Start-VMHostService
-		Get-VMHostService -vmhost $h | Where {$_.key -eq "ntpd"} | Set-VMHostService -policy 'on'
-	}
-
-	$ntpData = Get-VMHostService -VMHost $h	| where { $_.key -eq 'ntpd' }
-	$row.NTPDRUNNING = "$($ntpData.Running) (was $($row.NTPDRUNNING))"
-	$row.NTPDPOLICY	=	"$($ntpData.Policy) (was $($row.NTPDPOLICY))"
-	$row.NTPSERVER	 =	"$(Get-VMHostNtpServer -VMHost $h) (was $($row.NTPSERVER))"
-
 	$hostReport += $row
-	
 }
 $hostReport | ft -auto
-Remove-Variable row
+If  ( $row) { Remove-Variable row }
 Write-Host "=========================="
 
 
@@ -283,27 +251,21 @@ foreach ($vm in $allvms) {
 	if( $currentUuidActionValue -eq "keep" ) {
 		$row.UUIDACTION = $currentUuidActionValue
 	} elseif(! $currentUuidActionValue ) {
-		if( $autoRemediate ) {
-			Write-Host -ForegroundColor Green "Correcting vVM UUID.action"
-			try {
-				New-AdvancedSetting -en $vm -name uuid.action -value 'keep' -Confirm:$false -ErrorAction 1 | Out-Null
-				$row.UUIDACTION = "was BLANK"
-			} catch {
-				Write-Host -Fore Red	"Failed to create UUID.action on $($vm.name)"
-				$row.UUIDACTION = "FIXMANUAL"
-			}
+		try {
+			New-AdvancedSetting -en $vm -name uuid.action -value 'keep' -Confirm:$false -ErrorAction 1 | Out-Null
+			$row.UUIDACTION = "was BLANK"
+		} catch {
+			Write-Host -Fore Red	"Failed to create UUID.action on $($vm.name)"
+			$row.UUIDACTION = "FIXMANUAL"
 		}
 	} else {
-		if( $autoRemediate ) {
-			Write-Host -ForegroundColor Green "Correcting vVM typematic setting"
-			try {
-				Set-AdvancedSetting $currentUuidAction -value 'keep' -Confirm:$false -ErrorAction 1
-				$row.UUIDACTION = "was $currentUuidActionValue"
-			} catch {
-				Write-Host -Fore Red	"Failed to set UUID.action on $($vm.name)"
-				Write-Host -Fore Red	"	value remains: $((Get-AdvancedSetting -en $vm -name uuid.action).value)"
-				$row.UUIDACTION = "FIXMANUAL"
-			}
+		try {
+			Set-AdvancedSetting $currentUuidAction -value 'keep' -Confirm:$false -ErrorAction 1
+			$row.UUIDACTION = "was $currentUuidActionValue"
+		} catch {
+			Write-Host -Fore Red	"Failed to set UUID.action on $($vm.name)"
+			Write-Host -Fore Red	"	value remains: $((Get-AdvancedSetting -en $vm -name uuid.action).value)"
+			$row.UUIDACTION = "FIXMANUAL"
 		}
 	}
 	
@@ -316,25 +278,22 @@ foreach ($vm in $allvms) {
 		if( $currentTypeDelayValue -eq 2000000 ) {
 			$row.TYPEDELAY = $currentTypeDelayValue
 		} elseif(! $currentTypeDelay ) {
-			if( $autoRemediate ) {
-				try {
-					New-AdvancedSetting -en $vm -name keyboard.typematicMinDelay -value 2000000 -Confirm:$false -ErrorAction 1 | Out-Null
-					$row.TYPEDELAY = "was BLANK"
-				} catch {
-					Write-Host -Fore Red	"Failed to create keyboard.typematicMinDelay on $($vm.name)"
-					$row.TYPEDELAY = "FIXMANUAL"
-				}
+			try {
+				New-AdvancedSetting -en $vm -name keyboard.typematicMinDelay -value 2000000 -Confirm:$false -ErrorAction 1 | Out-Null
+				$row.TYPEDELAY = "was BLANK"
+			} catch {
+				Write-Host -Fore Red	"Failed to create keyboard.typematicMinDelay on $($vm.name)"
+				$row.TYPEDELAY = "FIXMANUAL"
 			}
+
 		} else {
-			if( $autoRemediate ) {
-				try {
-					Set-AdvancedSetting $currentTypeDelay -value 2000000 -Confirm:$false -ErrorAction 1
-					$row.TYPEDELAY = "was $currentTypeDelayValue"
-				} catch {
-					Write-Host -Fore Red "Failed to set keyboard.typematicMinDelay on $($vm.name)"
-					Write-Host -Fore Red	"	value remains: $((Get-AdvancedSetting -en $vm -name keyboard.typematicMinDelay).value)"
-					$row.TYPEDELAY = "FIXMANUAL"
-				}
+			try {
+				Set-AdvancedSetting $currentTypeDelay -value 2000000 -Confirm:$false -ErrorAction 1
+				$row.TYPEDELAY = "was $currentTypeDelayValue"
+			} catch {
+				Write-Host -Fore Red "Failed to set keyboard.typematicMinDelay on $($vm.name)"
+				Write-Host -Fore Red	"	value remains: $((Get-AdvancedSetting -en $vm -name keyboard.typematicMinDelay).value)"
+				$row.TYPEDELAY = "FIXMANUAL"
 			}
 		}
 	}
@@ -342,10 +301,46 @@ foreach ($vm in $allvms) {
 }
 
 $vmReport | ft
-Remove-Variable row
+If  ( $row) { Remove-Variable row }
 Write-Host "=========================="
 
+##############################################################################
+##### Check vVM Resource Settings
+##############################################################################
+Write-Host "==== L2 RESOURCE CONFIGURATION ===="
+Write-Host ""
+$vmReport = @()
 
+foreach ($vm in $allvms) {
+	$row = "" | Select VMNAME,CpuReservationMhz,MemReservationGB,CpuSharesLevel,MemSharesLevel
+	$row.VMNAME = $vm.name
+	$row.CpuReservationMhz = $vm.VMResourceConfiguration.CpuReservationMhz
+	$row.MemReservationGB = $vm.VMResourceConfiguration.MemReservationGB
+	$row.CpuSharesLevel = $vm.VMResourceConfiguration.CpuSharesLevel
+	$row.MemSharesLevel = $vm.VMResourceConfiguration.MemSharesLevel
+	
+	If ( $vm.VMResourceConfiguration.CpuReservationMhz ) {
+		Write-Host "Setting " $vm.Name " CPU reservation to 0 per HOL standards..." -foregroundcolor "red"
+		$vm | Get-VMResourceConfiguration | Set-VMResourceConfiguration -CPUReservationMhz 0
+		$row.CpuReservationMhz = "was " + $vm.VMResourceConfiguration.CpuReservationMhz
+	}
+	If ( $vm.VMResourceConfiguration.MemReservationGB ) {
+		Write-Host "Setting " $vm.Name " memory reservation to 0 per HOL standards..." -foregroundcolor "red"
+		$vm | Get-VMResourceConfiguration | Set-VMResourceConfiguration -MemReservationMB 0
+		$row.MemReservationGB = "was " + $vm.VMResourceConfiguration.MemReservationGB
+	}
+	If ( $vm.VMResourceConfiguration.CpuSharesLevel -ne "Normal" ) {
+		#Write-Host "Notification only: " $vm.Name " CPU Shares are: " $vm.VMResourceConfiguration.CpuSharesLevel
+	}
+	If ( $vm.VMResourceConfiguration.MemSharesLevel -ne "Normal" ) {
+		#Write-Host "Notification only: " $vm.Name " CPU Shares are: " $vm.VMResourceConfiguration.MemSharesLevel
+	}
+	$vmReport += $row
+}
+
+$vmReport | ft
+If  ( $row) { Remove-Variable row }
+Write-Host "=========================="
 
 ##############################################################################
 ##### Check Licensing
