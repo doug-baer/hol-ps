@@ -1,5 +1,5 @@
 <#
-	LabStartup Functions - 2016-05-05
+	LabStartup Functions - 2016-08-08
 #>
 
 # Bypass SSL certificate verification (tesing)
@@ -420,12 +420,12 @@ Function ManageLinuxService ([string]$action, [string]$server, [string]$service,
 		}
 		$msg = Invoke-Plink -remoteHost $server -login $linuxuser -passwd $linuxpassword -command $lcmd2
 		If (( $action -eq "start" ) -or ( $action -eq "restart") -or ( $action -eq "query" )) {
-			If( $msg -like "* is running" ) {
+			If( $msg -match "is running" ) {
 				$result.value = "success"
 				If ($action -eq "query") { Return "Running" }
 			}
 		} ElseIf (( $action -eq "stop" ) -or ( $action -eq "query" )) {
-				If( $msg -like "* is not running" ) {
+				If( $msg -match "is not running" ) {
 					$result.value = "success"
 					If ($action -eq "query") { Return "Stopped" }
 				}
