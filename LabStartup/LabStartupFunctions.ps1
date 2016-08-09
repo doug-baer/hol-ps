@@ -1,5 +1,5 @@
 <#
-	LabStartup Functions - 2016-08-08
+	LabStartup Functions - 2016-08-09
 #>
 
 # Bypass SSL certificate verification (tesing)
@@ -541,6 +541,82 @@ Function Test-URL {
 	}
 
 } #End Test-URL
+
+Function ManageVcsaService {
+<#
+	This function manages (start/stop/restart/status) the specified service on the specified VCSA server (6.0 or 6.5)
+	
+.EXAMPLE
+	ManageVcsaService 'status' 'vcsa-01a.corp.local' 'vsphere-client'  ([REF]$result)
+.EXAMPLE
+	ManageVcsaService 'status' 'vcsa-01a.corp.local' 'vsphere-client'  ([REF]$result) -Verbose
+#>
+	[CmdletBinding()]
+
+	PARAM (
+		[string]$action, 
+		[string]$server, 
+		[string]$service, 
+		[REF]$result
+	)
+
+	$action = $action.ToLower()
+	$validActions = ('restart','start','status','stop')
+	
+	If( $validActions.Contains($action) ) {
+		Try {
+			# Execute a stop or restart action (which is stop, then start)
+			If( ($action -eq "stop") -or ($action -eq "restart") ) {
+				$lcmdStop = "service-control --stop $service"
+				# this blocks until the stop completes
+				Write-Verbose "Stopping $service on $server"
+				Invoke-Plink -remoteHost $server -login $linuxuser -passwd $linuxpassword -command $lcmdStop | Out-Null
+				Write-Verbose "Stopped $service on $server"			
+				#LabStartup-Sleep $waitsec
+			}
+	
+			If( ($action -eq "start") -or ($action -eq "restart") ) {
+				$lcmdStart = "service-control --start $service"
+				# this blocks until the start completes
+				Write-Verbose "Starting $service on $server"
+				Invoke-Plink -remoteHost $server -login $linuxuser -passwd $linuxpassword -command $lcmdStart | Out-Null
+				Write-Verbose "Started $service on $server"
+				#LabStartup-Sleep $waitsec
+			}
+			
+			# get the state of the service
+			$lcmdStatus = "service-control --status $service"
+			Write-Verbose "Querying status of $service on $server"
+			$msg = Invoke-Plink -remoteHost $server -login $linuxuser -passwd $linuxpassword -command $lcmdStatus
+	
+			#parse the result of the "status" command
+			If( ($action -eq "start") -or ($action -eq "restart") -or ( $action -eq "status") ) {
+				Write-Verbose "Start/Restart/Status returned`n`t$msg"
+				If( ($msg -match "Running").Count -ge 1 ) {
+					$result.value = "success"
+					If( $action -eq "status" ) { Return "Running" }
+				}
+			} ElseIf( ($action -eq "stop") -or ($action -eq "status") ) {
+				Write-Verbose "Stop/Status returned`n`t$msg"
+					If( ($msg -match "Stopped").Count -ge 1 ) {
+						$result.value = "success"
+						If( $action -eq "status" ) { Return "Stopped" }
+					}
+			}
+	
+			return $msg
+		}
+		Catch {
+			Write-Host "Failed to $action $service on $server -- $msg"
+			$result.value = "fail"
+		}
+	}
+	Else {
+		Write-Host "Invalid action: $action"
+		$result.value = "fail"
+	}
+} #End ManageVcsaService
+
 
 Function Get-RuntimeSeconds ( [datetime]$start ) {
 <#
