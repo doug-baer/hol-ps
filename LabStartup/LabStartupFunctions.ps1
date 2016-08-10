@@ -413,6 +413,26 @@ Function ManageLinuxService ([string]$action, [string]$server, [string]$service,
 #>
 	$lcmd1 = "service $service $action"
 	$lcmd2 = "service $service status"
+	
+	Try {
+		#find Photon-based VCSA and act differently
+		$msg = Invoke-Plink -remoteHost $server -login $linuxuser -passwd $linuxpassword -command 'uname -v'
+		If( $msg -match 'photon' ) {
+			Write-Host "Operating System is Photon"
+			If( $action -eq 'query' ) {
+				$msg = ManageVcsaService 'status' $server $service  ([REF]$result)
+			} Else {
+				$msg = ManageVcsaService $action $server $service  ([REF]$result)
+			}
+			return $msg
+		}
+	}
+	Catch {
+		Write-Host "Failed to run uname on $server : $msg"
+		$result.value = "fail"
+	}
+
+	
 	Try {
 		If ($action -ne "query") {
 			$msg = Invoke-Plink -remoteHost $server -login $linuxuser -passwd $linuxpassword -command $lcmd1
