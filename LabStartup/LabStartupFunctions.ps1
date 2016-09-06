@@ -1,5 +1,5 @@
 <#
-	LabStartup Functions - 2016-08-09
+	LabStartup Functions - 2016-09-06
 #>
 
 # Bypass SSL certificate verification (tesing)
@@ -787,6 +787,7 @@ Function Get-URL {
 } #End Get-URL
 
 
+
 # Small Function to execute a REST operation and return the JSON response
 Function Http-rest-xml
 {
@@ -807,7 +808,8 @@ Function Http-rest-xml
 		String: URI that identifies the resource
 		String: username (optional)
 		String: password (optional)
-		String: Body if required
+		String: etag (if required)
+		String: Body (if required)
 	.OUTPUTS
 		JsonObject: Request result in JSON
 	.LINK
@@ -864,6 +866,15 @@ Function Http-rest-xml
 		[
 			parameter(
 				Mandatory = $false,
+				HelpMessage = "Look up the etag, if required for resource matching",
+				ValueFromPipeline = $false
+			)
+		]
+		[Switch]
+		$etag,
+		[
+			parameter(
+				Mandatory = $false,
 				HelpMessage = "Specify the body content if required (PUT/POST)",
 				ValueFromPipeline = $false
 			)
@@ -888,6 +899,14 @@ Function Http-rest-xml
 			# Construct headers with authentication data + expected Accept header (xml / json)
 			$headers = @{"Authorization" = "Basic $EncodedPassword"}
 			$headers.Add("Accept", "application/xml")
+			if( ($method -eq 'PUT') -and $etag ) {
+				$wr = Invoke-WebRequest -Uri $Url -Headers $headers
+				$etagVal = $wr.headers.etag
+				Write-Verbose "Etag retreived: $etagVal"
+				if( $etagVal -ne '' ) {
+					$headers.Add("If-Match", $etagVal)
+				}
+			}
 			#$headers.Add("Accept", "application/json")
 		} else {
 			$headers = ''
