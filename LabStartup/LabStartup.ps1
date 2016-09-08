@@ -52,8 +52,9 @@ Write-Output "$startTime beginning LabStartup"
 ##### User Variables
 ##############################################################################
 
-#The SKU of this pod
-$vPodSKU = 'HOL-1799'
+# The SKU of this pod
+# You must update this variable to the SKU of your lab.
+$vPodSKU = 'HOL-BADSKU'
 
 # Credentials used to login to vCenters
 # vcuser could be "root" if using ESXi host only
@@ -200,6 +201,13 @@ Foreach ($ModuleSwitcherStateFile in $ModuleSwitcherStateFiles) {
 
 # Use the configured Lab SKU to configure eth5 on vpodrouter
 # bad SKU is a failure
+If ( $vPodSKU -eq 'HOL-BADSKU' ) {
+	# Problems: Use the default IP network and FAIL
+	Write-Output "ERROR - lab SKU not updated: $vPodSKU"
+	$IPNET= '192.168.250'
+	# fail the script 
+	Write-VpodProgress "FAIL-Bad Lab SKU" 'FAIL-1'
+}
 $TMP = $vPodSKU.Split('-')
 Try {
 # the YEAR is the first two characters of the last field as an integer
