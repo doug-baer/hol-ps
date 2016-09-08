@@ -139,13 +139,18 @@ Function RunWinCmd ([string]$wcmd, [REF]$result) {
 
 Function Report-VpodStatus ([string] $newStatus) {
 	$server = 'router.corp.local'
-	$newStatus = "$IPNET." + $statusTable[$newStatus]
+	$newIP = "$IPNET." + $statusTable[$newStatus]
 	$bcast = "$IPNET." + "255"
 	#replace the IP address on the vpodrouter's 6th NIC with our indicator code
-	$lcmd = "sudo /sbin/ifconfig eth5 broadcast $bcast netmask 255.255.255.0 $newStatus"
+	$lcmd = "sudo /sbin/ifconfig eth5 broadcast $bcast netmask 255.255.255.0 $newIP"
 	#Write-Host $lcmd
 	$msg = Invoke-Plink -remoteHost $server -login holuser -passwd $linuxpassword -command '$lcmd'
-	$currentStatus = $newStatus
+	$currentStatus = $newIP
+	If ( $newStatus.Contains('FAIL') ) {
+		Exit
+	}
+	
+
 } #End Report-VpodStatus
 
 Function Write-VpodProgress ([string] $msg, [string] $code) {
