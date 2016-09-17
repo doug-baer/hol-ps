@@ -49,6 +49,10 @@ Function Start-AutoLab () {
 	If there is media in the CD/DVD drive and it contains "autolab.ps1"
 	run that script - enables vpod automation for scale testing
 #>
+	If ( $labcheck ) { 
+		Write-Host "Labcheck is active. Skipping Start-AutoLab"
+		Return $FALSE 
+	}
 	$cd = (Get-WmiObject win32_LogicalDisk -filter 'DriveType=5')|%{$_.DeviceID}
 	If( $cd ) {
 		Write-Host "Testing $cd\autolab.ps1"
@@ -139,18 +143,19 @@ Function RunWinCmd ([string]$wcmd, [REF]$result) {
 
 Function Report-VpodStatus ([string] $newStatus) {
 	$server = 'router.corp.local'
-	$newIP = "$IPNET." + $statusTable[$newStatus]
+	If ( -Not $labcheck ) { # record cold start runtime minutes on first octet if not labcheck
+		[decimal] $coldStartMin = [math]::Round((Get-RuntimeSeconds $startTime) / 60)
+	}
+	If ( $coldStartMin -lt 1 ) { $coldStartMin = 1}
+	$IPNET = "$coldStartMin.$YEAR.$SKU"
+	$newStatus = "$IPNET." + $statusTable[$newStatus]
+	#Write-Host "newStatus: $newStatus"
 	$bcast = "$IPNET." + "255"
 	#replace the IP address on the vpodrouter's 6th NIC with our indicator code
-	$lcmd = "sudo /sbin/ifconfig eth5 broadcast $bcast netmask 255.255.255.0 $newIP"
+	$lcmd = "sudo /sbin/ifconfig eth5 broadcast $bcast netmask 255.255.255.0 $newStatus"
 	#Write-Host $lcmd
 	$msg = Invoke-Plink -remoteHost $server -login holuser -passwd $linuxpassword -command '$lcmd'
-	$currentStatus = $newIP
-	If ( $newStatus.Contains('FAIL') ) {
-		Exit
-	}
-	
-
+	$currentStatus = $newStatus
 } #End Report-VpodStatus
 
 Function Write-VpodProgress ([string] $msg, [string] $code) {

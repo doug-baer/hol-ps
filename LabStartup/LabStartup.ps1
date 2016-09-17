@@ -173,6 +173,17 @@ $Pings = @(
 ##### Preliminary Tasks
 ##############################################################################
 
+# determine if this is first run or a labcheck run
+If ( $args[0] -eq 'labcheck' ) { 
+	$labcheck = $true
+	# if labcheck, retrieve cold start minutes from first octet of eth5 on vPodRouter
+	$lcmd = "sudo /sbin/ifconfig eth5"
+	$msg = Invoke-Plink -remoteHost 'router.corp.local' -login holuser -passwd $linuxpassword -command '$lcmd'
+	$fields = $msg.Split()
+	$ip = $fields[24].Split(':').Split('.')
+	$coldStartMin = $ip[1]
+} Else { $labcheck = $false }
+
 #Remove the file that causes the "Reset" message in Firefox
 $userProfilePath = (Get-Childitem env:UserProfile).Value
 $firefoxProfiles = Get-ChildItem (Join-Path $userProfilePath 'AppData\Roaming\Mozilla\Firefox\Profiles')
