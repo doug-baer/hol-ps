@@ -16,6 +16,7 @@ LabStartup.ps1 - May 2, 2016
 * The IP address on the eth5 NIC of the vpodrouter is set using SSH (plink.exe) 
   and sudo (installed on the vpodrouter) using the "holuser" account. 
 * NEW: set $vPodSKU variable to pod's SKU
+* NEW: option to run LabStartup periodically with command line "labcheck"
 
 .EXAMPLE
 LabStartup.ps1
@@ -75,6 +76,9 @@ $sleepSeconds = 10
 $vcBootMinutes = 10
 # if still running this long, fail the pod (pod Timeout)
 $maxMinutesBeforeFail = 30
+# specify in hours how often LabStartup should check lab status. Must be longer than $maxMinutesBeforeFail
+# if 0, then LabStartup will be run at vPod boot only
+$LabCheckInterval = 2
 # path to Plink.exe -- for status & managing Linux
 $plinkPath =  Join-Path $labStartupRoot 'Tools\plink.exe'
 # path to pscp.exe -- for transferring files to Linux
@@ -183,6 +187,12 @@ If ( $args[0] -eq 'labcheck' ) {
 	$ip = $fields[24].Split(':').Split('.')
 	$coldStartMin = $ip[1]
 } Else { $labcheck = $false }
+
+# create the Scheduled Task to run LabStartup at the interval indicated
+If ( -Not $LabCheck -and ($LabCheckInterval -ne 0) ) {
+	Write-Host "Creating Windows Scheduled Task to run LabStartup every $LabCheckInterval hours..."
+	$LabCheckTask = Create-LabCheck-Task $LabCheckInterval
+}
 
 #Remove the file that causes the "Reset" message in Firefox
 $userProfilePath = (Get-Childitem env:UserProfile).Value

@@ -946,3 +946,111 @@ Function Http-rest-xml
 			# What to do here ?
 	}
 } # End Http-rest-xml
+
+# create a repeating Windows Scheduled Task in PowerShell to run LabCheck
+Function Create-LabCheck-Task
+{
+	<#
+	.SYNOPSIS
+		This function creates a Windows Scheduled Task for the LabCheck use case from XML due to PS bug with -RunOnlyIfIdle
+	.DESCRIPTION
+		This function creates a Windows Scheduled Task for the LabCheck use case from XML due to PS bug with -RunOnlyIfIdle
+	.INPUTS
+		Integer: interval (LabCheck interval in hours which must be longer than $maxMinutesBeforeFail)
+	.OUTPUTS
+		Windows Scheduled Task object.
+	.LINK
+		None.
+	#>
+	[CmdletBinding()]
+	PARAM(
+		[
+			parameter(
+				Mandatory = $true,
+				HelpMessage = "Specify the LabCheck run interval must be longer than maxMinutesBeforeFail",
+				ValueFromPipeline = $false
+			)
+		]
+		[int]
+		$interval
+	)
+		BEGIN {
+		# verify that the LabChek interval is longer than $maxMinutesBeforeFail
+		If ( $interval -lt ($maxMinutesBeforeFail / 60) ) { 
+			Write-Host "LabCheck interval ($interval hours) must be longer than maxMinutesBeforeFail ($maxMinutesBeforeFail minutes)"
+			Exit
+		}
+		# Build the variables needed for the Task XML
+		$xmlInterval = "PT" + $interval + "H" # how often should LabCheck run?
+		# set the task to run for a year. A prepop should not be around anywhere near this long.
+		$taskDuration = 365
+		$xmlDuration = "P" + $taskDuration + "D"
+		# $taskStart is offset from current time by $interval
+		$taskStart =(Get-Date -DisplayHint time).AddMinutes($interval*60)
+		#Write-Host $taskStart
+		$xmlStart = '{0:yyyy}-{0:MM}-{0:dd}T{0:HH}:{0:mm}:{0:ss}' -f $taskStart
+	}
+
+	PROCESS {
+		# build the Task XML
+		$taskXML = "<?xml version=`"1.0`" encoding=`"UTF-16`"?>
+<Task version=`"1.3`" xmlns=`"http://schemas.microsoft.com/windows/2004/02/mit/task`">
+  <RegistrationInfo>
+    <Author>CORP\Administrator</Author>
+    <Description>LabCheck</Description>
+  </RegistrationInfo>
+  <Triggers>
+    <TimeTrigger>
+      <Repetition>
+        <Interval>$xmlInterval</Interval>
+        <Duration>$xmlDuration</Duration>
+        <StopAtDurationEnd>true</StopAtDurationEnd>
+      </Repetition>
+      <StartBoundary>$xmlStart</StartBoundary>
+      <Enabled>true</Enabled>
+    </TimeTrigger>
+  </Triggers>
+  <Principals>
+    <Principal id=`"Author`">
+      <RunLevel>LeastPrivilege</RunLevel>
+      <UserId>CORP\Administrator</UserId>
+      <LogonType>InteractiveToken</LogonType>
+    </Principal>
+  </Principals>
+  <Settings>
+    <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>
+    <DisallowStartIfOnBatteries>true</DisallowStartIfOnBatteries>
+    <StopIfGoingOnBatteries>true</StopIfGoingOnBatteries>
+    <AllowHardTerminate>true</AllowHardTerminate>
+    <StartWhenAvailable>true</StartWhenAvailable>
+    <RunOnlyIfNetworkAvailable>false</RunOnlyIfNetworkAvailable>
+    <IdleSettings>
+      <Duration>PT10M</Duration>
+      <WaitTimeout>PT9H30M</WaitTimeout>
+      <StopOnIdleEnd>true</StopOnIdleEnd>
+      <RestartOnIdle>false</RestartOnIdle>
+    </IdleSettings>
+    <AllowStartOnDemand>true</AllowStartOnDemand>
+    <Enabled>true</Enabled>
+    <Hidden>false</Hidden>
+    <RunOnlyIfIdle>true</RunOnlyIfIdle>
+    <DisallowStartOnRemoteAppSession>false</DisallowStartOnRemoteAppSession>
+    <UseUnifiedSchedulingEngine>true</UseUnifiedSchedulingEngine>
+    <WakeToRun>false</WakeToRun>
+    <ExecutionTimeLimit>P3D</ExecutionTimeLimit>
+    <Priority>7</Priority>
+  </Settings>
+  <Actions Context=`"Author`">
+    <Exec>
+      <Command>C:\hol\LabCheck.bat</Command>
+    </Exec>
+  </Actions>
+</Task>"
+		$registeredTask = Register-ScheduledTask -Xml "$taskXML" -Force -TaskName "LabCheck"
+	}
+	
+	END {
+		return $registeredTask
+	}
+
+} # End Create-LabCheck-Task
