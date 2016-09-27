@@ -186,6 +186,14 @@ If ( $args[0] -eq 'labcheck' ) {
 	$fields = $msg.Split()
 	$ip = $fields[24].Split(':').Split('.')
 	$coldStartMin = $ip[1]
+	#Fixup the Lab Status color to Red
+	(Get-Content $desktopInfoIni) | % { 
+		$line = $_
+			If( $line -match 'Lab Status' ) {
+			$line = $line -replace '55CC77','3A3AFA'
+		}
+	$line
+	} | Out-File -FilePath $desktopInfoIni -encoding "ASCII"
 } Else { $labcheck = $false }
 
 # create the Scheduled Task to run LabStartup at the interval indicated
