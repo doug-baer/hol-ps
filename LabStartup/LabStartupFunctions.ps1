@@ -1,5 +1,5 @@
 <#
-	LabStartup Functions - 2016-09-06
+	LabStartup Functions - 2016-09-30
 #>
 
 # Bypass SSL certificate verification (tesing)
