@@ -303,6 +303,9 @@ Function Restart-VC ([string]$entry, [REF]$result){
 	}
 } #End Restart-VC
 
+# need a global to keep track of previous nested item power state so pause can be skipped if in LabCheck
+$previousPowerState = ""
+
 # starts the nested VMs or vApps
 Function Start-Nested ( [array] $records ) {
 
@@ -317,9 +320,19 @@ Function Start-Nested ( [array] $records ) {
 		# If blank, default to the first/only vCenter
 		If ( $vcenter -eq $null ) { ($vcenter,$type) = $vCenters[0].Split(":") }
 		If ( $name -eq "Pause" ) {
-		    Write-Host "Pausing for $vcenter seconds..."
-			LabStartup-Sleep $vcenter
-			Continue
+			If ( !($labcheck) ) {  # always pause if not LabCheck regardless of previousPowerState
+				Write-Host "Pausing for $vcenter seconds..."
+				LabStartup-Sleep $vcenter
+				Continue
+			 # no need to pause if Labcheck and previous nested item was already on.
+			} ElseIf (($previousPowerState -eq "Started") -or ($previousPowerState -eq "PoweredOn")) {
+				Write-Host "Skipping $vcenter second pause since previous powerstate was $previousPowerState and LabCheck is active."
+				Continue
+			} Else { # if LabCheck and previous nested item was started
+				Write-Host "Pausing for $vcenter seconds during LabCheck..."
+				LabStartup-Sleep $vcenter
+				Continue
+			}
 		}
 		
 		If( $vApp = Get-VApp -Name $name -Server $vcenter -ea 0 ) {
@@ -336,6 +349,8 @@ Function Start-Nested ( [array] $records ) {
 			Write-Output $("ERROR: Unable to find entity {0} on {1}" -f $name, $vcenter )
 			Continue
 		}
+		
+		$previousPowerState = $powerState
 		
 		Write-Output $("Checking {0} {1} power state: {2}" -f $type, $name, $powerState )
 		While ( !($powerState.Contains($goodPower)) ) {
