@@ -196,12 +196,6 @@ If ( $args[0] -eq 'labcheck' ) {
 	} | Out-File -FilePath $desktopInfoIni -encoding "ASCII"
 } Else { $labcheck = $false }
 
-# create the Scheduled Task to run LabStartup at the interval indicated
-If ( -Not $LabCheck -and ($LabCheckInterval -ne 0) ) {
-	Write-Host "Creating Windows Scheduled Task to run LabStartup every $LabCheckInterval hours..."
-	$LabCheckTask = Create-LabCheck-Task $LabCheckInterval
-}
-
 #Remove the file that causes the "Reset" message in Firefox
 $userProfilePath = (Get-Childitem env:UserProfile).Value
 $firefoxProfiles = Get-ChildItem (Join-Path $userProfilePath 'AppData\Roaming\Mozilla\Firefox\Profiles')
@@ -447,6 +441,11 @@ Write-Output $msg
 
 Write-VpodProgress "Finished Additional Tests" 'GOOD-5'
 
+# create the Scheduled Task to run LabStartup at the interval indicated
+If ( -Not $LabCheck -and ($LabCheckInterval -ne 0) ) {
+	Write-Host "Creating Windows Scheduled Task to run LabStartup every $LabCheckInterval hours..."
+	$LabCheckTask = Create-LabCheck-Task $LabCheckInterval
+}
 
 #Report final state and duration
 Write-VpodProgress "Ready" 'READY'
