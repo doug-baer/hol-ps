@@ -1,7 +1,5 @@
 #!/bin/sh
 
-# just testing NEW version 12:01 PM CDT 9/1
-
 # clear any existing rules
 iptables --flush
 
