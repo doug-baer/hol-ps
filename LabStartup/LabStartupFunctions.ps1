@@ -81,7 +81,7 @@ $statusTable = @{
 	'FAIL-2'   = 102
 	'FAIL-3'   = 103
 	'FAIL-4'   = 104
-	'FAIL-5'   = 105
+	'LABCHECK' = 105
 	'READY'    = 200
 	'AUTOLAB'  = 201
 	'STARTING' = 202
@@ -149,6 +149,9 @@ Function Report-VpodStatus ([string] $newStatus) {
 	If ( $coldStartMin -lt 1 ) { $coldStartMin = 1}
 	$IPNET = "$coldStartMin.$YEAR.$SKU"
 	$newStatus = "$IPNET." + $statusTable[$newStatus]
+	If ( $labcheck -and ($newStatus -gt 202 ) ) {
+		$newStatus = "$IPNET." + $statusTable['LABCHECK']
+	}
 	#Write-Host "newStatus: $newStatus"
 	$bcast = "$IPNET." + "255"
 	#replace the IP address on the vpodrouter's 6th NIC with our indicator code
