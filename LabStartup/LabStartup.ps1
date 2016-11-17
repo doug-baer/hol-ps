@@ -76,9 +76,9 @@ $sleepSeconds = 10
 $vcBootMinutes = 10
 # if still running this long, fail the pod (pod Timeout)
 $maxMinutesBeforeFail = 30
-# specify in hours how often LabStartup should check lab status. Must be longer than $maxMinutesBeforeFail
+# specify in hours how often LabStartup should re-check lab status. Must be longer than $maxMinutesBeforeFail
 # if 0, then LabStartup will be run at vPod boot only
-$LabCheckInterval = 2
+$LabCheckInterval = 1
 # path to Plink.exe -- for status & managing Linux
 $plinkPath =  Join-Path $labStartupRoot 'Tools\plink.exe'
 # path to pscp.exe -- for transferring files to Linux
