@@ -265,9 +265,12 @@ Catch {
 ##### Main LabStartup
 ##############################################################################
 
-#Please leave this line here to enable scale testing automation 
-If( Start-AutoLab ) { Exit } Write-Output "No autolab.ps1 found, continuing."
-
+If ( $labcheck ) {
+	Write-Host "LabCheck is active. Skipping Start-AutoLab."
+} Else {
+	#Please leave this line here to enable scale testing automation 
+	If( Start-AutoLab ) { Exit } Write-Output "No autolab.ps1 found, continuing."
+}
 #ATTENTION: Remove the next three lines when you implement this script for your pod
 Set-Content -Value "Implement LabStartup" -Path $statusFile
 Write-Output "LabStartup script has not been implemented yet. Please ask for assistance if you need it."
