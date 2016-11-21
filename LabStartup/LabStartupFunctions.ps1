@@ -148,14 +148,16 @@ Function Report-VpodStatus ([string] $newStatus) {
 	}
 	If ( $coldStartMin -lt 1 ) { $coldStartMin = 1}
 	$IPNET = "$coldStartMin.$YEAR.$SKU"
-	$newStatus = "$IPNET." + $statusTable[$newStatus]
-	If ( $labcheck -and ($newStatus -gt 202 ) ) {
-		$newStatus = "$IPNET." + $statusTable['LABCHECK']
+	$newIP = "$IPNET." + $statusTable[$newStatus]
+	If ( ($labcheck) -and ($statusTable[$newStatus] -gt 202 ) ) {
+		$newIP = "$IPNET." + $statusTable['LABCHECK']
+		# Delete the Windows Scheduled Task so it doesn't run again before remediation
+		Write-Host "Disabling LabCheck task..."
+		Disable-ScheduledTask -TaskName "LabCheck"
 	}
-	#Write-Host "newStatus: $newStatus"
 	$bcast = "$IPNET." + "255"
 	#replace the IP address on the vpodrouter's 6th NIC with our indicator code
-	$lcmd = "sudo /sbin/ifconfig eth5 broadcast $bcast netmask 255.255.255.0 $newStatus"
+	$lcmd = "sudo /sbin/ifconfig eth5 broadcast $bcast netmask 255.255.255.0 $newIP"
 	#Write-Host $lcmd
 	$msg = Invoke-Plink -remoteHost $server -login holuser -passwd $linuxpassword -command '$lcmd'
 	$currentStatus = $newStatus
