@@ -1,8 +1,8 @@
 <#
-	LabStartup Functions - 2016-09-30
+	LabStartup Functions - 2016-11-22
 #>
 
-# Bypass SSL certificate verification (tesing)
+# Bypass SSL certificate verification (testing)
 add-type @"
 	using System.Net;
 	using System.Security.Cryptography.X509Certificates;

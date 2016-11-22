@@ -252,8 +252,10 @@ Catch {
 ## DO NOT UNINSTALL POWERCLI FROM THE VPOD
 Try {
 	#For PowerCLI v6.x
-	$PowerCliInit = 'C:\Program Files (x86)\VMware\Infrastructure\vSphere PowerCLI\Scripts\Initialize-PowerCLIEnvironment.ps1'
-	. $PowerCliInit
+	#$PowerCliInit = 'C:\Program Files (x86)\VMware\Infrastructure\vSphere PowerCLI\Scripts\Initialize-PowerCLIEnvironment.ps1'
+	#For PowerCLI v6.5
+	$PowerCliInit = 'C:\Program Files (x86)\VMware\Infrastructure\PowerCLI\Scripts\Initialize-PowerCLIEnvironment.ps1'
+	. $PowerCliInit $true
 } 
 Catch {
 	Write-Host "No PowerCLI found, unable to continue."
@@ -271,6 +273,7 @@ If ( $labcheck ) {
 	#Please leave this line here to enable scale testing automation 
 	If( Start-AutoLab ) { Exit } Write-Output "No autolab.ps1 found, continuing."
 }
+
 #ATTENTION: Remove the next three lines when you implement this script for your pod
 Set-Content -Value "Implement LabStartup" -Path $statusFile
 Write-Output "LabStartup script has not been implemented yet. Please ask for assistance if you need it."
