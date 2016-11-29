@@ -13,19 +13,24 @@ year="168"
 sku="250"
 
 # 192.168.250.1  default IP of eth5 vPodRouter
-while [ "$year$sku" = "168250" ]
+while [ "$year$sku" -eq "168250" ]
 do
         if [ $ctr -eq $timeout ]
         then
                 echo "LabStartup did not set eth5. Aborting..."
                 /root/iptablescfg.sh
+		passwd root <<END
+VMware1!
+VMware1!
+END
                 exit
         fi
         # get the vPod index number
         ip=`ifconfig eth5 | grep "inet addr" | cut -f 2 -d : | cut -f1 -d ' '`
         year=`echo "$ip" | cut -f 2 -d .`
         sku=`echo "$ip" | cut -f3 -d .`
-        if [ "$year$sku" = "168250" ]
+	sku=`printf "%02d" $sku`
+        if [ "$year$sku" -eq "168250" ]
         then
                 echo "Waiting for Labstartup to set eth5..."
                 ctr=`expr $ctr + 1`
@@ -41,6 +46,10 @@ do
         then
                 echo "Cannot determine $repoFQDN IP. Exit."
                 /root/iptablescfg.sh
+		passwd root <<END
+VMware1!
+VMware1!
+END
                 exit
         fi
         echo "Getting current $repoFQDN IP address..."
@@ -71,7 +80,7 @@ echo "Retrieving $rulefile from $repoFQDN..."
 wget "$repoURL/$rulefile" -O /root/$rulefile
 
 good=`grep holuser /root/$rulefile | cut -f2 -d '/'`
-if [ $good = 'firewall' ]
+if [ "$good" = "firewall" ]
 then
         echo "$rulefile is good. Updating iptables..."
         # update iptablescfg.sh
@@ -80,7 +89,12 @@ then
         /root/iptablescfg.sh
         rm -f /root/origrules.sh
 else
-		echo "$rulefile is NOT good or missing. Reverting iptables..."
+	echo "$rulefile is NOT good or missing. Reverting iptables..."
         mv /root/origrules.sh /root/iptablescfg.sh
+	rm -f /root/$rulefile
         /root/iptablescfg.sh
+	passwd root <<END
+VMware1!
+VMware1!
+END
 fi
