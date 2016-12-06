@@ -149,11 +149,17 @@ Function Report-VpodStatus ([string] $newStatus) {
 	If ( $coldStartMin -lt 1 ) { $coldStartMin = 1}
 	$IPNET = "$coldStartMin.$YEAR.$SKU"
 	$newIP = "$IPNET." + $statusTable[$newStatus]
-	If ( ($labcheck) -and ($statusTable[$newStatus] -gt 202 ) ) {
-		$newIP = "$IPNET." + $statusTable['LABCHECK']
-		# Delete the Windows Scheduled Task so it doesn't run again before remediation
-		Write-Host "Disabling LabCheck task..."
-		Disable-ScheduledTask -TaskName "LabCheck"
+	If ($labcheck) {
+		If ( ($statusTable[$newStatus] -gt 202 ) `
+		     -or ($statusTable[$newStatus] -eq 101) `
+			 -or ($statusTable[$newStatus] -eq 102) `
+			 -or ($statusTable[$newStatus] -eq 103) `
+			 -or ($statusTable[$newStatus] -eq 104) ) {
+				$newIP = "$IPNET." + $statusTable['LABCHECK']
+				# Delete the Windows Scheduled Task so it doesn't run again before remediation
+				Write-Host "Disabling LabCheck task..."
+				Disable-ScheduledTask -TaskName "LabCheck"
+			}
 	}
 	$bcast = "$IPNET." + "255"
 	#replace the IP address on the vpodrouter's 6th NIC with our indicator code
