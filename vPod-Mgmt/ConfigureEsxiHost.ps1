@@ -1,5 +1,5 @@
 <#
-	Configuration script for HOL vCenter(s) and vESXi hosts
+	Configuration script for HOL vCenter(s) and vESXi hosts [2017]
 	Start with empty vCenter inventory
 	End with Datacenter, Cluster, hosts in the Cluster, 
 		iSCSI adapter added and pointed to FreeNAS
@@ -7,20 +7,20 @@
 	
 	Version - 2 Dec 2016
 	
-	TODO: look at implementing VSAN config option (not used currently)
 	TODO: look at setting default gateway for vmk1 (storage) as an override to Default IP stack
+	TODO: look at implementing VSAN config option (not used currently)
 
 #>
 
 #Licenses for 2017 - for A and B sites ("regions" in VVD-speak)
 $vCenterLicenses = @{
-	'a' = '0J202-QCJ54-78093-0V2KK-3R87J' #vc.standard.instance
-	'b' = '0N690-LCJ5P-38092-0CA2P-2NHNN'
+	'a' = 'YOUR-LICENSE-KEY-HERE' #vc.standard.instance
+	'b' = 'YOUR-LICENSE-KEY-HERE'
 }
 
 $esxLicenses = @{
-	'a' = 'J141H-QY084-7808H-0E3AK-1DUMN' #esx.vcloudEnterprise.cpuPackage
-	'b' = 'J5480-LYH8M-Q898R-0X2RP-1TU6J'
+	'a' = 'YOUR-LICENSE-KEY-HERE' #esx.vcloudEnterprise.cpuPackage
+	'b' = 'YOUR-LICENSE-KEY-HERE'
 }
 
 $rootPassword = 'VMware1!'

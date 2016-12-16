@@ -2,6 +2,10 @@
 	Configuration script for HOL "extra" vESXi hosts
 		Basic networking + VSAN prep
 		
+	This was used to create one-off VSAN-enabled template hosts that were not yet joined to a vCenter
+	
+	The VSAN flagging relied on standard sizes of VMDKs presented to identify capacity vs. cache
+
 	April 15, 2016
 #>
 
