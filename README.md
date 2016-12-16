@@ -1,4 +1,4 @@
 hol-ps
 ======
 
-Hands-on Labs Powershell Scripts
+VMware Hands-on Labs Core team PowerShell Scripts

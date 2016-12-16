@@ -12,6 +12,10 @@ a Microsoft CA deployed on Controlcenter (CONTROLCENTER-CA). To save resources i
 the lab, we do not have the Microsoft CA web interface enabled, so we use Powershell
 to handle the processing. 
 
-The management scripts are some of the tools we use to manage replication of 
-the OVF exports that represent each of our lab environments. These may not be 
-generally useful except in showing how to call cygwin commands from Powershell.
+The management scripts are some of the tools we use to configure the ESXi hosts and
+vCenter servers within the vPods.
+
+The ModuleSwitcher is a simple panel we use to call Start and Stop scripts to
+allow users to "fast forward" their lab environments to defined checkpoints within
+the environment -- we call these module boundaries because they map to the states
+expected by the various sections of our manuals.
