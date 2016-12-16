@@ -13,6 +13,16 @@
 #>
 
 #Licenses for 2017 - for A and B sites ("regions" in VVD-speak)
+$gotLicenses = $false
+$licenseFile = "C:\HOL\Tools\HOL2017-Licenses.ps1"
+if( Test-Path $licenseFile ) {
+	#load the HOL Licenses for this year
+	. $licenseFile
+	$gotLicenses = $true
+}
+
+# Format of "license file" to support multiple licenses, multiple sites
+<#
 $vCenterLicenses = @{
 	'a' = 'YOUR-LICENSE-KEY-HERE' #vc.standard.instance
 	'b' = 'YOUR-LICENSE-KEY-HERE'
@@ -22,9 +32,7 @@ $esxLicenses = @{
 	'a' = 'YOUR-LICENSE-KEY-HERE' #esx.vcloudEnterprise.cpuPackage
 	'b' = 'YOUR-LICENSE-KEY-HERE'
 }
-
-#load the HOL Licenses for this year
-. C:\HOL\Tools\HOL2017-Licenses.ps1
+#>
 
 $rootPassword = 'VMware1!'
 $ntpServer = '192.168.100.1'
@@ -106,23 +114,25 @@ try {
 	Return
 }
 
-#add the licenses to the vCenter's inventory (for the correct Region)
-$vCenterLicense = $vCenterLicenses[$site]
-$esxLicense = $esxLicenses[$site]
+if( $gotLicenses ) {
+	#add the licenses to the vCenter's inventory (for the correct Region)
+	$vCenterLicense = $vCenterLicenses[$site]
+	$esxLicense = $esxLicenses[$site]
 
-$LicMgr = Get-View (Get-View $DefaultViServer).Content.LicenseManager
-$LicMgr.AddLicense($vCenterLicense,$null)
-$LicMgr.AddLicense($esxLicense,$null)
+	$LicMgr = Get-View (Get-View $DefaultViServer).Content.LicenseManager
+	$LicMgr.AddLicense($vCenterLicense,$null)
+	$LicMgr.AddLicense($esxLicense,$null)
 
-#Prepare for license assignments
-$si = Get-View ServiceInstance
-$LicManRef = $si.Content.LicenseManager
-$LicManView = Get-View $LicManRef
-$LicAssignMgrView = Get-View $LicManView.LicenseAssignmentManager
+	#Prepare for license assignments
+	$si = Get-View ServiceInstance
+	$LicManRef = $si.Content.LicenseManager
+	$LicManView = Get-View $LicManRef
+	$LicAssignMgrView = Get-View $LicManView.LicenseAssignmentManager
 
-#Assign the vCenter license to vCenter
-$vcUuid = $si.Content.About.InstanceUuid
-$LicAssignMgrView.UpdateAssignedLicense($vcUuid,$vCenterLicense,$null)
+	#Assign the vCenter license to vCenter
+	$vcUuid = $si.Content.About.InstanceUuid
+	$LicAssignMgrView.UpdateAssignedLicense($vcUuid,$vCenterLicense,$null)
+}
 
 #Reconfigure vCenter logging
 $vcLogSettings.Keys | % { Get-AdvancedSetting -Entity $defaultviserver -name $_ | Set-AdvancedSetting -Value $($vcLogSettings[$_]) -Confirm:$false | Out-Null }
@@ -169,17 +179,18 @@ Foreach ($hostName in $hostNames) {
 ### Work with the hosts
 Foreach ($hostName in $hostNames) {
 	$h = Get-VMHost -Location $dc -Name $hostName 
-	#$hostName = $h.name
 	$matches = Select-String -InputObject $hostName -Pattern 'esx-(\d+)(a|b).corp.local'
 	$hostNum = [int]$matches.Matches[0].Groups[1].value
 	$hostSite = $matches.Matches[0].Groups[2].value
 
 	Write-Host -Fore Green "Working on host $hostname"
 
-	Write-Host -Fore Green "Assigning License"
-	$hostMoRef = ($h | Get-View).MoRef
-	#it looks like the 3rd parameter here is the "Asset" name
-	$LicAssignMgrView.UpdateAssignedLicense($hostMoRef.Value,$esxLicense,$hostName)	
+	if( $gotLicenses ) {
+		Write-Host -Fore Green "Assigning License"
+		$hostMoRef = ($h | Get-View).MoRef
+		#it looks like the 3rd parameter here is the "Asset" name
+		$LicAssignMgrView.UpdateAssignedLicense($hostMoRef.Value,$esxLicense,$hostName)	
+	}
 
 	Write-Host -Fore Green "Configuring NTP"
 	Add-VMhostNtpserver -vmhost $h -ntpserver $ntpServer
@@ -242,14 +253,6 @@ Foreach ($hostName in $hostNames) {
 	#Set the default route for the vmotion stack
 	$esxcli = Get-EsxCli -VMHost $h
 	$esxcli.network.ip.route.ipv4.add($vmotionGW,'vmotion','default')
-
-<#
-	#IP Storage - NFS (legacy HOL)
-	Write-Host -Fore Green "Mounting datastore from FreeNAS"	
-	$nfsDatastoreName = 'ds-site-' + $baseSite + '-nfs01'
-	$nfsPath = '/mnt/NFS' + $baseSite.ToUpper()
-	New-datastore -NFS -Name $nfsDatastoreName -VMhost $h -nfshost $storageHostIP -path $nfsPath
-#>
 
 	#IP Storage - iSCSI: add SW iSCSI adapter and rescan
 	Write-Host -Fore Green "Configuring iSCSI adapter and target"	
