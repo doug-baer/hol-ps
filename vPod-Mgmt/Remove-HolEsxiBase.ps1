@@ -14,7 +14,7 @@ The script will
 	* remove the host from vCenter inventory
 
 .NOTES
-Remove-HolEsxiBase.ps1 - December 14, 2016
+Remove-HolEsxiBase.ps1 - December 21, 2016
 
 .EXAMPLE
 Remove-HolEsxiBase.ps1
@@ -42,6 +42,8 @@ If( !(Get-Module VMware.VimAutomation.Core) ) {
 	} 
 	Catch {
 		Write-Host -ForegroundColor Red "No PowerCLI found, unable to continue."
+		Write-Host "Press any key to end script."
+		$host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
 		Break
 	}
 }
@@ -93,6 +95,8 @@ try {
 } catch {
 	#Bail if the connection to vCenter does not work. Nothing else makes sense to try.
 	Write-Host -ForegroundColor Red "ERROR: Unable to connect to vCenter $vCenterServer"
+	Write-Host "Press any key to end script."
+	$host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
 	Return
 }
 
@@ -113,7 +117,9 @@ Foreach ($hostName in $hostNames) {
 	$vms = ($vmhost | Get-VM)
 	if( $vms.Count -gt 0 ) {
 		Write-Host -ForegroundColor Red "VMs exist on host $hostName. Cannot continue."
-		return
+		Write-Host "Press any key to end script."
+		$host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+		Return
 	}
 
 	# Put the target into Maintenance Mode
@@ -155,7 +161,7 @@ Foreach ($hostName in $hostNames) {
 
 	#Remove vmk1, vmk2
 	Write-Host "`tRemoving vmk1 and vmk2"
-	(1..2) | % { $vmhost | Get-VMHostNetworkAdapter -VMKernel -Name "vmk$_" -ErrorAction 1|  Remove-VMHostNetworkAdapter -Confirm:$false }
+	(1..2) | % { $vmhost | Get-VMHostNetworkAdapter -VMKernel -Name "vmk$_" |  Remove-VMHostNetworkAdapter -Confirm:$false }
 	
 	Write-Host "`tMigrating $hostName vmk0 to $svsName"
 	$vmk0 = $vmhost | Get-VMHostNetworkAdapter -VMKernel -Name 'vmk0'
