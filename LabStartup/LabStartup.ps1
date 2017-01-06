@@ -10,7 +10,7 @@ on TCP ports or via URLs. Records progress into a log file and simple status int
 for consumption by DesktopInfo. Modifies 6th NIC on vpodrouter to report status upstream.
 
 .NOTES
-LabStartup.ps1 - October 20, 2016
+LabStartup.ps1 - January 6, 2017
 * A majority of the functions are loaded via C:\HOL\LabStartupFunctons.ps1
 * URLs must begin with http:// or https:// (with valid certificate)
 * The IP address on the eth5 NIC of the vpodrouter is set using SSH (plink.exe) 
@@ -28,7 +28,8 @@ NONE
 
 .OUTPUTS
 Log messages are written to the console or redirected to an output file and 
-C:\HOL\startup_status.txt ($statusFile) is updated with periodic status for consumption by DesktopInfo.exe using the Write-VpodProgress function.
+C:\HOL\startup_status.txt ($statusFile) is updated with periodic status for consumption by 
+DesktopInfo.exe using the Write-VpodProgress function.
 The IP address of the 6th NIC on the vpodrouter (router.corp.local) is modified 
 with an encoded status code as the script progresses.
 Upon failure, whether explicit or via script timeout, the script will set the FAILURE 
@@ -198,7 +199,8 @@ If ( $args[0] -eq 'labcheck' ) {
 
 #Remove the file that causes the "Reset" message in Firefox
 $userProfilePath = (Get-Childitem env:UserProfile).Value
-$firefoxProfiles = Get-ChildItem (Join-Path $userProfilePath 'AppData\Roaming\Mozilla\Firefox\Profiles')
+$firefoxProfilesPath = Join-Path $userProfilePath 'AppData\Roaming\Mozilla\Firefox\Profiles'
+If( Test-Path $firefoxProfilesPath ) { $firefoxProfiles = Get-ChildItem $firefoxProfilesPath }
 Foreach ($firefoxProfile in $firefoxProfiles) {
 	$firefoxLock = Join-Path $firefoxProfile.FullName 'parent.lock'
 	Try {
