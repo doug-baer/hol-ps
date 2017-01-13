@@ -17,13 +17,23 @@ while [ "$year$sku" -eq "168250" ]
 do
         if [ $ctr -eq $timeout ]
         then
-                echo "LabStartup did not set eth5. Aborting..."
-                /root/iptablescfg.sh
-		passwd root <<END
+		# set $year$sku from sku.txt if possible
+		if [ -s ~root/sku.txt ]
+		then
+			year=`cut -c 1-2 ~root/sku.txt`
+			sku=`cut -c 3-4 ~root/sku.txt`
+			ctr=0
+			echo "Got SKU from ~root/sku.txt. Continuing..."
+			break
+		else
+            echo "LabStartup did not set eth5. Aborting..."
+            /root/iptablescfg.sh
+			passwd root <<END
 VMware1!
 VMware1!
 END
-                exit
+                	exit
+		fi
         fi
         # get the vPod index number
         ip=`ifconfig eth5 | grep "inet addr" | cut -f 2 -d : | cut -f1 -d ' '`
@@ -35,6 +45,9 @@ END
                 echo "Waiting for Labstartup to set eth5..."
                 ctr=`expr $ctr + 1`
                 sleep $sleeptime
+	else
+		echo "Recording $year$sku in ~root/sku.txt..."
+		echo $year$sku > ~root/sku.txt
         fi
 done
 
