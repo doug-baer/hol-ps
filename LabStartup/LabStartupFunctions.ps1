@@ -118,24 +118,36 @@ Function Invoke-Pscp ([string]$login, [string]$passwd, [string]$sourceFile, [str
  
 } #End Invoke-Pscp
 
-Function RunWinCmd ([string]$wcmd, [REF]$result) {
+Function RunWinCmd ([string]$wcmd, [REF]$result, [string]$remoteServer, [string]$remoteUser, [string]$remotePass) {
 <#
   Execute a Windows command on the local machine with some degree of error checking
 #>
 	$errorVar = ""
 	
-	# need this in order to capture output but make certain not already included
-	if ( !($wcmd.Contains(" 2>&1"))) {
+	# need this in order to capture local output but make certain not already included
+	If ( !($wcmd.Contains(" 2>&1")) -And !($remoteServer) ) {
 	   $wcmd += ' 2>&1'
+	}
+	
+	If ( $remoteServer ) {
+		If ( $wcmd.Contains(".ps1") ) {
+			Write-Host "Remote execution of PowerShell scripts does not work. Use a remote bat to call your PowerShell instead."
+			$result.Value = "success"  # this is just to break the calling loop
+			return
+		}
+		If ( -Not $remoteUser ) { $remoteUser = $vcuser }
+		If ( -Not $remotePass ) { $remotePass = $password }
+		$wcmd = "c:\hol\tools\PsExec64.exe \\$remoteServer -user $remoteUser -password $remotePass -s cmd /c `"$wcmd`""
+		Write-Host $wcmd
 	}
 	
 	$output = Invoke-Expression -Command $wcmd -ErrorVariable errorVar
 	
-	if ( $errorVar.Length -gt 0 ) {
+	If ( $errorVar.Length -gt 0 ) {
 		#Write-Host "Error: $errorVar"
 		$result.Value = "fail"
 		return $errorVar
-	} else {
+	} Else {
 		$result.Value = "success"
 		return $output
 	}

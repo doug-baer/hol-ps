@@ -419,9 +419,12 @@ Foreach ($url in $($URLs.Keys)) {
 # example RunWinCmd (Note this is commented out!)
 <# 
 
-$wcmd = "ipconfig"
+$wcmd = "ipconfig /all"
 Do { 
-		$output = RunWinCmd $wcmd ([REF]$result)
+		# optionally include a remote machine name.
+		# by default it uses $vcuser and $password but a non-domain administrator user and password can be specified
+		# PowerShell scripts cannot be run remotely. Call the PS script from a bat.
+		$output = RunWinCmd $wcmd ([REF]$result) # remoteServer remoteServer\Administrator VMware1!
 		ForEach ($line in $output) {
 		    Write-Output $line
 		}
