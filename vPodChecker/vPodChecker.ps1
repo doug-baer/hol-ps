@@ -76,14 +76,16 @@ Write-Host "HOL SSL Certifcates should NOT expire before $minValidDate"
 
 ##############################################################################
 
-#Load the VMware PowerCLI tools - no PowerCLI is fatal. 
 Try {
 	#For PowerCLI v6.x
-	$PowerCliInit = 'C:\Program Files (x86)\VMware\Infrastructure\vSphere PowerCLI\Scripts\Initialize-PowerCLIEnvironment.ps1'
-	. $PowerCliInit
+	#$PowerCliInit = 'C:\Program Files (x86)\VMware\Infrastructure\vSphere PowerCLI\Scripts\Initialize-PowerCLIEnvironment.ps1'
+	#For PowerCLI v6.5
+	$PowerCliInit = 'C:\Program Files (x86)\VMware\Infrastructure\PowerCLI\Scripts\Initialize-PowerCLIEnvironment.ps1'
+	. $PowerCliInit $true
 } 
 Catch {
 	Write-Host "No PowerCLI found, unable to continue."
+	Write-VpodProgress "FAIL - No PowerCLI" 'FAIL-1'
 	Break
 } 
 
