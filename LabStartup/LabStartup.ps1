@@ -80,6 +80,8 @@ $maxMinutesBeforeFail = 30
 # specify in hours how often LabStartup should re-check lab status. Must be longer than $maxMinutesBeforeFail
 # if 0, then LabStartup will be run at vPod boot only
 $LabCheckInterval = 1
+# initial ready time is recorded in this file
+$readyTimeFile = Join-Path $labStartupRoot 'readyTime.txt'
 # path to Plink.exe -- for status & managing Linux
 $plinkPath =  Join-Path $labStartupRoot 'Tools\plink.exe'
 # path to pscp.exe -- for transferring files to Linux
@@ -181,20 +183,8 @@ $Pings = @(
 # determine if this is first run or a labcheck run
 If ( $args[0] -eq 'labcheck' ) { 
 	$labcheck = $true
-	# if labcheck, retrieve cold start minutes from first octet of eth5 on vPodRouter
-	$lcmd = "sudo /sbin/ifconfig eth5"
-	$msg = Invoke-Plink -remoteHost 'router.corp.local' -login holuser -passwd $linuxpassword -command '$lcmd'
-	$fields = $msg.Split()
-	$ip = $fields[24].Split(':').Split('.')
-	$coldStartMin = $ip[1]
-	#Fixup the Lab Status color to Red
-	(Get-Content $desktopInfoIni) | % { 
-		$line = $_
-			If( $line -match 'Lab Status' ) {
-			$line = $line -replace '55CC77','3A3AFA'
-		}
-	$line
-	} | Out-File -FilePath $desktopInfoIni -encoding "ASCII"
+	# TODO: need to check if vPodRouterHOL was rebooted and get the value elsewhere.
+	$coldStartMin = Get-Content ($readyTimeFile)
 } Else { $labcheck = $false }
 
 #Remove the file that causes the "Reset" message in Firefox
@@ -453,11 +443,18 @@ Write-Output $msg
 
 Write-VpodProgress "Finished Additional Tests" 'GOOD-5'
 
-# create the Scheduled Task to run LabStartup at the interval indicated
-If ( -Not $LabCheck -and ($LabCheckInterval -ne 0) ) {
+# create the Scheduled Task to run LabStartup at the interval indicated and record initial ready time
+If ( -Not $LabCheck ) {
 	Write-Host "Creating Windows Scheduled Task to run LabStartup every $LabCheckInterval hours..."
 	$LabCheckTask = Create-LabCheck-Task $LabCheckInterval
+	# Since vPodRouter might be rebooted, record initial ready time for LabCheck
+	$readyTime = [Math]::Round( (Get-RuntimeSeconds $startTime) / 60)
+	Set-Content -Value ($readyTime) -Path $readyTimeFile
 }
+
+# try to determine current cloud using vPodRouter guestinfo
+$cloudInfo = Get-CloudInfo
+Write-Host $cloudInfo
 
 #Report final state and duration
 Write-VpodProgress "Ready" 'READY'

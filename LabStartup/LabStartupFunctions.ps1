@@ -118,36 +118,24 @@ Function Invoke-Pscp ([string]$login, [string]$passwd, [string]$sourceFile, [str
  
 } #End Invoke-Pscp
 
-Function RunWinCmd ([string]$wcmd, [REF]$result, [string]$remoteServer, [string]$remoteUser, [string]$remotePass) {
+Function RunWinCmd ([string]$wcmd, [REF]$result) {
 <#
   Execute a Windows command on the local machine with some degree of error checking
 #>
 	$errorVar = ""
 	
-	# need this in order to capture local output but make certain not already included
-	If ( !($wcmd.Contains(" 2>&1")) -And !($remoteServer) ) {
+	# need this in order to capture output but make certain not already included
+	if ( !($wcmd.Contains(" 2>&1"))) {
 	   $wcmd += ' 2>&1'
-	}
-	
-	If ( $remoteServer ) {
-		If ( $wcmd.Contains(".ps1") ) {
-			Write-Host "Remote execution of PowerShell scripts does not work. Use a remote bat to call your PowerShell instead."
-			$result.Value = "success"  # this is just to break the calling loop
-			return
-		}
-		If ( -Not $remoteUser ) { $remoteUser = $vcuser }
-		If ( -Not $remotePass ) { $remotePass = $password }
-		$wcmd = "c:\hol\tools\PsExec64.exe \\$remoteServer -user $remoteUser -password $remotePass -s cmd /c `"$wcmd`""
-		Write-Host $wcmd
 	}
 	
 	$output = Invoke-Expression -Command $wcmd -ErrorVariable errorVar
 	
-	If ( $errorVar.Length -gt 0 ) {
+	if ( $errorVar.Length -gt 0 ) {
 		#Write-Host "Error: $errorVar"
 		$result.Value = "fail"
 		return $errorVar
-	} Else {
+	} else {
 		$result.Value = "success"
 		return $output
 	}
@@ -176,14 +164,24 @@ Function Report-VpodStatus ([string] $newStatus) {
 	$bcast = "$IPNET." + "255"
 	#replace the IP address on the vpodrouter's 6th NIC with our indicator code
 	$lcmd = "sudo /sbin/ifconfig eth5 broadcast $bcast netmask 255.255.255.0 $newIP"
-	#Write-Host $lcmd
-	$msg = Invoke-Plink -remoteHost $server -login holuser -passwd $linuxpassword -command '$lcmd'
+	
+	#need retry code here to allow for vPodRouter reboot events due to cloud info
+	$wcmd = "Echo Y | $plinkPath -ssh router.corp.local -l holuser -pw VMware1! $lcmd  2>&1"
+	$errorVar = "junk" # initialize errorVar for While loop
+	While ( $errorVar.Length -gt 0 ) { # errorVar.length should be 0 if success
+		$output = Invoke-Expression -Command $wcmd -ErrorVariable errorVar
+		If ( $errorVar.Length -gt 0  ) { 
+			Write-Host $errorVar
+			LabStartup-Sleep $sleepSeconds
+		}
+	}
 	$currentStatus = $newStatus
 } #End Report-VpodStatus
 
 Function Write-VpodProgress ([string] $msg, [string] $code) {
 	$myTime = $(Get-Date)
-	If( $msg -eq 'Ready' ) {
+	If ( -Not $labcheck ) {
+	  If( $msg -eq 'Ready' ) {
 		$dateCode = "{0:D2}/{1:D2} {2:D2}:{3:D2}" -f $myTime.month,$myTime.day,$myTime.hour,$myTime.minute
 		Set-Content -Value ([byte[]][char[]] "$msg $dateCode") -Path $statusFile -Encoding Byte
 		#also change text color to Green (55cc77) in desktopInfo
@@ -197,9 +195,23 @@ Function Write-VpodProgress ([string] $msg, [string] $code) {
 		} Else {
 		$dateCode = "{0:D2}:{1:D2}" -f $myTime.hour,$myTime.minute
 		Set-Content -Value ([byte[]][char[]] "$dateCode $msg ") -Path $statusFile -Encoding Byte
+	  }
 	}
 	Report-VpodStatus $code
 } #End Write-VpodProgress
+
+Function Get-CloudInfo {
+# try to determine current cloud using vPodRouter guestinfo
+	$lcmd = "/usr/sbin/vmtoolsd --cmd '''info-get guestinfo.ovfenv'''" # passing single quote is tricky
+	$msg = Invoke-Expression "Echo Y | $plinkPath -ssh router.corp.local -l holuser -pw VMware1! $lcmd  2>&1"
+	Try {
+		$cloud = (([xml]$msg).Environment.PropertySection.Property | where {$_.key -eq 'cloud'}).value
+		Return $cloud
+	} Catch {
+		Return "Cannot determine cloud at this time."
+}
+
+} #End Get-CloudInfo
 
 
 Function Connect-vCenter ( [array] $vCenters ) {
