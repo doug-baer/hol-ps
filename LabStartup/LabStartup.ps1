@@ -183,7 +183,6 @@ $Pings = @(
 # determine if this is first run or a labcheck run
 If ( $args[0] -eq 'labcheck' ) { 
 	$labcheck = $true
-	# TODO: need to check if vPodRouterHOL was rebooted and get the value elsewhere.
 	$coldStartMin = Get-Content ($readyTimeFile)
 } Else { $labcheck = $false }
 
