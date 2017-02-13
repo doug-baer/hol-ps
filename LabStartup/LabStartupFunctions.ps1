@@ -1,5 +1,5 @@
 <#
-	LabStartup Functions - 2017-02-04
+	LabStartup Functions - 2017-02-13
 #>
 
 # Bypass SSL certificate verification (testing)
@@ -118,15 +118,27 @@ Function Invoke-Pscp ([string]$login, [string]$passwd, [string]$sourceFile, [str
  
 } #End Invoke-Pscp
 
-Function RunWinCmd ([string]$wcmd, [REF]$result) {
+Function RunWinCmd ([string]$wcmd, [REF]$result, [string]$remoteServer, [string]$remoteUser, [string]$remotePass) {
 <#
   Execute a Windows command on the local machine with some degree of error checking
 #>
 	$errorVar = ""
 	
 	# need this in order to capture output but make certain not already included
-	if ( !($wcmd.Contains(" 2>&1"))) {
+	if ( !($wcmd.Contains(" 2>&1")) -And !($remoteServer) ) {
 	   $wcmd += ' 2>&1'
+	}
+	
+	If ( $remoteServer ) {
+		If ( $wcmd.Contains(".ps1") ) {
+			Write-Host "Remote execution of PowerShell scripts does not work. Use a remote bat to call you PowerShell instead."
+			$result.Value = "success" # this is just to break the calling loop
+			return
+		}
+		If ( -Not $remoteUser ) { $remoteUser = $vcuser }
+		If ( -Not $remotePass ) { $remotePass = $password }
+		$wcmd = "$psexecPath \\$remoteServer -user $remoteUser -password $remotePass -s cmd /c `"$wcmd`""
+		Write-Host $wcmd
 	}
 	
 	$output = Invoke-Expression -Command $wcmd -ErrorVariable errorVar

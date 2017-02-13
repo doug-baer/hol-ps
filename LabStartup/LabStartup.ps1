@@ -87,6 +87,8 @@ $plinkPath =  Join-Path $labStartupRoot 'Tools\plink.exe'
 # path to pscp.exe -- for transferring files to Linux
 # you must place pscp.exe in this path in order to use the Invoke-Pscp function
 $pscpPath =  Join-Path $labStartupRoot 'Tools\pscp.exe'
+# path to PsExec64.exe for using RunWinCmd with a remote Windows machine
+$psexecPath = Join-Path $labStartupRoot 'Tools\PsExec64.exe'
 # path to desktopInfo file for status reporting
 $desktopInfoIni = 'C:\DesktopInfo\DesktopInfo.ini'
 #must be defined in order to pass as reference for looping
