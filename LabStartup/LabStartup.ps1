@@ -223,7 +223,6 @@ If ( $vPodSKU -eq 'HOL-BADSKU' ) {
 	$IPNET= '192.168.250'
 	# fail the script 
 	Write-VpodProgress "FAIL-Bad Lab SKU" 'FAIL-1'
-	Exit
 }
 $TMP = $vPodSKU.Split('-')
 Try {
