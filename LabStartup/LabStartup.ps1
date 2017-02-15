@@ -10,7 +10,7 @@ on TCP ports or via URLs. Records progress into a log file and simple status int
 for consumption by DesktopInfo. Modifies 6th NIC on vpodrouter to report status upstream.
 
 .NOTES
-LabStartup.ps1 - January 6, 2017
+LabStartup.ps1 - February 15, 2017
 * A majority of the functions are loaded via C:\HOL\LabStartupFunctons.ps1
 * URLs must begin with http:// or https:// (with valid certificate)
 * The IP address on the eth5 NIC of the vpodrouter is set using SSH (plink.exe) 
@@ -225,13 +225,14 @@ Foreach ($ModuleSwitcherStateFile in $ModuleSwitcherStateFiles) {
 } #END Clean up HOL Module Switcher state file(s)
 
 # Use the configured Lab SKU to configure eth5 on vpodrouter
-# bad SKU is a failure
+# bad SKU is a hard failure
 If ( $vPodSKU -eq 'HOL-BADSKU' ) {
 	# Problems: Use the default IP network and FAIL
 	Write-Output "ERROR - lab SKU not updated: $vPodSKU"
 	$IPNET= '192.168.250'
 	# fail the script 
 	Write-VpodProgress "FAIL-Bad Lab SKU" 'FAIL-1'
+	Exit
 }
 $TMP = $vPodSKU.Split('-')
 Try {
