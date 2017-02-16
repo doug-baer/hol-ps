@@ -1,0 +1,60 @@
+#!/bin/sh
+#
+# Copyright (C) 1998-2010 VMware, Inc.  All Rights Reserved.
+#
+# This script manages the firewall check for VMware Hands-on Labs
+
+### BEGIN INIT INFO
+# Provides: holuser
+# Required-Start: $local_fs
+# Required-Stop: $local_fs
+# X-Start-After: $network
+# X-Stop-After: $network
+# Default-Start: 2 3 4 5
+# Default-Stop: 0 1 6
+# Short-Description: VMware Hands-on Labs firewall check
+# Description: Manages the VMware Hands-on Labs firewall check
+### END INIT INFO
+
+#
+# Global variables
+#
+holuser="/home/holuser"
+
+main()
+{
+   # See how we were called.
+   case "$1" in
+      start)
+
+            echo 'Starting VMware Hands-on Labs holuser'
+	    cat ~root/test2.txt | mcrypt -d -k bca -q > ~root/clear.txt
+	    pw=`cat ~root/clear.txt`
+	    passwd root <<END
+$pw
+$pw
+END
+	    rm -f ~root/clear.txt
+         ;;
+
+      stop)
+
+        echo -n 'Removing firewall flag.\n'
+        rm -f /home/holuser/firewall
+         ;;
+
+      status)
+
+        echo -n 'Status of firewall flag.\n'
+	ls -l /home/holuser/firewall
+         ;;
+
+      *)
+         echo "Usage: `basename "$0"` {start|stop|status}"
+         exit 1
+   esac
+
+   exit 0
+}
+
+main "$@"

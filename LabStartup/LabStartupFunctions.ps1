@@ -1,5 +1,5 @@
 <#
-	LabStartup Functions - 2016-11-22
+	LabStartup Functions - 2017-02-13
 #>
 
 # Bypass SSL certificate verification (testing)
@@ -118,15 +118,27 @@ Function Invoke-Pscp ([string]$login, [string]$passwd, [string]$sourceFile, [str
  
 } #End Invoke-Pscp
 
-Function RunWinCmd ([string]$wcmd, [REF]$result) {
+Function RunWinCmd ([string]$wcmd, [REF]$result, [string]$remoteServer, [string]$remoteUser, [string]$remotePass) {
 <#
   Execute a Windows command on the local machine with some degree of error checking
 #>
 	$errorVar = ""
 	
 	# need this in order to capture output but make certain not already included
-	if ( !($wcmd.Contains(" 2>&1"))) {
+	if ( !($wcmd.Contains(" 2>&1")) -And !($remoteServer) ) {
 	   $wcmd += ' 2>&1'
+	}
+	
+	If ( $remoteServer ) {
+		If ( $wcmd.Contains(".ps1") ) {
+			Write-Host "Remote execution of PowerShell scripts does not work. Use a remote bat to call you PowerShell instead."
+			$result.Value = "success" # this is just to break the calling loop
+			return
+		}
+		If ( -Not $remoteUser ) { $remoteUser = $vcuser }
+		If ( -Not $remotePass ) { $remotePass = $password }
+		$wcmd = "$psexecPath \\$remoteServer -user $remoteUser -password $remotePass -s cmd /c `"$wcmd`""
+		Write-Host $wcmd
 	}
 	
 	$output = Invoke-Expression -Command $wcmd -ErrorVariable errorVar
@@ -149,23 +161,39 @@ Function Report-VpodStatus ([string] $newStatus) {
 	If ( $coldStartMin -lt 1 ) { $coldStartMin = 1}
 	$IPNET = "$coldStartMin.$YEAR.$SKU"
 	$newIP = "$IPNET." + $statusTable[$newStatus]
-	If ( ($labcheck) -and ($statusTable[$newStatus] -gt 202 ) ) {
-		$newIP = "$IPNET." + $statusTable['LABCHECK']
-		# Delete the Windows Scheduled Task so it doesn't run again before remediation
-		Write-Host "Disabling LabCheck task..."
-		Disable-ScheduledTask -TaskName "LabCheck"
+	If ($labcheck) {
+		If ( ($statusTable[$newStatus] -gt 202 ) `
+		     -or ($statusTable[$newStatus] -eq 101) `
+			 -or ($statusTable[$newStatus] -eq 102) `
+			 -or ($statusTable[$newStatus] -eq 103) `
+			 -or ($statusTable[$newStatus] -eq 104) ) {
+				$newIP = "$IPNET." + $statusTable['LABCHECK']
+				# Delete the Windows Scheduled Task so it doesn't run again before remediation
+				Write-Host "Disabling LabCheck task..."
+				Disable-ScheduledTask -TaskName "LabCheck"
+			}
 	}
 	$bcast = "$IPNET." + "255"
 	#replace the IP address on the vpodrouter's 6th NIC with our indicator code
 	$lcmd = "sudo /sbin/ifconfig eth5 broadcast $bcast netmask 255.255.255.0 $newIP"
-	#Write-Host $lcmd
-	$msg = Invoke-Plink -remoteHost $server -login holuser -passwd $linuxpassword -command '$lcmd'
+	
+	#need retry code here to allow for vPodRouter reboot events due to cloud info
+	$wcmd = "Echo Y | $plinkPath -ssh router.corp.local -l holuser -pw VMware1! $lcmd  2>&1"
+	$errorVar = "junk" # initialize errorVar for While loop
+	While ( $errorVar.Length -gt 0 ) { # errorVar.length should be 0 if success
+		$output = Invoke-Expression -Command $wcmd -ErrorVariable errorVar
+		If ( $errorVar.Length -gt 0  ) { 
+			Write-Host $errorVar
+			LabStartup-Sleep $sleepSeconds
+		}
+	}
 	$currentStatus = $newStatus
 } #End Report-VpodStatus
 
 Function Write-VpodProgress ([string] $msg, [string] $code) {
 	$myTime = $(Get-Date)
-	If( $msg -eq 'Ready' ) {
+	If ( -Not $labcheck ) {
+	  If( $msg -eq 'Ready' ) {
 		$dateCode = "{0:D2}/{1:D2} {2:D2}:{3:D2}" -f $myTime.month,$myTime.day,$myTime.hour,$myTime.minute
 		Set-Content -Value ([byte[]][char[]] "$msg $dateCode") -Path $statusFile -Encoding Byte
 		#also change text color to Green (55cc77) in desktopInfo
@@ -179,9 +207,23 @@ Function Write-VpodProgress ([string] $msg, [string] $code) {
 		} Else {
 		$dateCode = "{0:D2}:{1:D2}" -f $myTime.hour,$myTime.minute
 		Set-Content -Value ([byte[]][char[]] "$dateCode $msg ") -Path $statusFile -Encoding Byte
+	  }
 	}
 	Report-VpodStatus $code
 } #End Write-VpodProgress
+
+Function Get-CloudInfo {
+# try to determine current cloud using vPodRouter guestinfo
+	$lcmd = "/usr/sbin/vmtoolsd --cmd '''info-get guestinfo.ovfenv'''" # passing single quote is tricky
+	$msg = Invoke-Expression "Echo Y | $plinkPath -ssh router.corp.local -l holuser -pw VMware1! $lcmd  2>&1"
+	Try {
+		$cloud = (([xml]$msg).Environment.PropertySection.Property | where {$_.key -eq 'cloud'}).value
+		Return $cloud
+	} Catch {
+		Return "Cannot determine cloud at this time."
+}
+
+} #End Get-CloudInfo
 
 
 Function Connect-vCenter ( [array] $vCenters ) {

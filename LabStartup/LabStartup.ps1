@@ -80,11 +80,15 @@ $maxMinutesBeforeFail = 30
 # specify in hours how often LabStartup should re-check lab status. Must be longer than $maxMinutesBeforeFail
 # if 0, then LabStartup will be run at vPod boot only
 $LabCheckInterval = 1
+# initial ready time is recorded in this file
+$readyTimeFile = Join-Path $labStartupRoot 'readyTime.txt'
 # path to Plink.exe -- for status & managing Linux
 $plinkPath =  Join-Path $labStartupRoot 'Tools\plink.exe'
 # path to pscp.exe -- for transferring files to Linux
 # you must place pscp.exe in this path in order to use the Invoke-Pscp function
 $pscpPath =  Join-Path $labStartupRoot 'Tools\pscp.exe'
+# path to PsExec64.exe for using RunWinCmd with a remote Windows machine
+$psexecPath = Join-Path $labStartupRoot 'Tools\PsExec64.exe'
 # path to desktopInfo file for status reporting
 $desktopInfoIni = 'C:\DesktopInfo\DesktopInfo.ini'
 #must be defined in order to pass as reference for looping
@@ -181,20 +185,7 @@ $Pings = @(
 # determine if this is first run or a labcheck run
 If ( $args[0] -eq 'labcheck' ) { 
 	$labcheck = $true
-	# if labcheck, retrieve cold start minutes from first octet of eth5 on vPodRouter
-	$lcmd = "sudo /sbin/ifconfig eth5"
-	$msg = Invoke-Plink -remoteHost 'router.corp.local' -login holuser -passwd $linuxpassword -command '$lcmd'
-	$fields = $msg.Split()
-	$ip = $fields[24].Split(':').Split('.')
-	$coldStartMin = $ip[1]
-	#Fixup the Lab Status color to Red
-	(Get-Content $desktopInfoIni) | % { 
-		$line = $_
-			If( $line -match 'Lab Status' ) {
-			$line = $line -replace '55CC77','3A3AFA'
-		}
-	$line
-	} | Out-File -FilePath $desktopInfoIni -encoding "ASCII"
+	$coldStartMin = Get-Content ($readyTimeFile)
 } Else { $labcheck = $false }
 
 #Remove the file that causes the "Reset" message in Firefox
@@ -419,9 +410,12 @@ Foreach ($url in $($URLs.Keys)) {
 # example RunWinCmd (Note this is commented out!)
 <# 
 
-$wcmd = "ipconfig"
+$wcmd = "ipconfig /all"
 Do { 
-		$output = RunWinCmd $wcmd ([REF]$result)
+		# optionally include a remote machine name.
+		# by default it uses $vcuser and $password but a non-domain administrator user and password can be specified
+		# PowerShell scripts cannot be run remotely. Call the PS script from a bat.
+		$output = RunWinCmd $wcmd ([REF]$result) # remoteServer remoteServer\Administrator VMware1!
 		ForEach ($line in $output) {
 		    Write-Output $line
 		}
@@ -450,11 +444,18 @@ Write-Output $msg
 
 Write-VpodProgress "Finished Additional Tests" 'GOOD-5'
 
-# create the Scheduled Task to run LabStartup at the interval indicated
-If ( -Not $LabCheck -and ($LabCheckInterval -ne 0) ) {
+# create the Scheduled Task to run LabStartup at the interval indicated and record initial ready time
+If ( -Not $LabCheck ) {
 	Write-Host "Creating Windows Scheduled Task to run LabStartup every $LabCheckInterval hours..."
 	$LabCheckTask = Create-LabCheck-Task $LabCheckInterval
+	# Since vPodRouter might be rebooted, record initial ready time for LabCheck
+	$readyTime = [Math]::Round( (Get-RuntimeSeconds $startTime) / 60)
+	Set-Content -Value ($readyTime) -Path $readyTimeFile
 }
+
+# try to determine current cloud using vPodRouter guestinfo
+$cloudInfo = Get-CloudInfo
+Write-Host $cloudInfo
 
 #Report final state and duration
 Write-VpodProgress "Ready" 'READY'
