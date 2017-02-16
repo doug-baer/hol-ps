@@ -9,8 +9,9 @@
 .DESCRIPTION	Check vPod configuration and remediate some misconfigurations
 
 .NOTES				Requires PowerCLI -- tested with v6.0u1
-							Version 1.01 - 24 Februrary 2016
+							Version 1.01 - 24 February 2016
 							Version 1.02 - 3 August 2016
+							Version 1.03 - 16 February 2017
  
 .EXAMPLE			.\vPodChecker.ps1
 
@@ -30,6 +31,8 @@ $URLs = @{
 	}
 
 $urlsToTest = $URLs.Keys | where { $_ -match 'https' } 
+
+$DefaultSslPort = 443
 
 #FQDN(s) of vCenter server(s)
 $vCenters = @(
@@ -69,7 +72,6 @@ $result = ''
 
 #Certificate Validation
 $minValidDate = [datetime]"12/31/$minYear"
-$ExtraCertDetails = $false
 
 Write-Host "HOL SSL Certifcates should NOT expire before $minValidDate"
 
@@ -145,70 +147,66 @@ Foreach ($vcserver in $vCenters) {
 ##### Check and report SSL Certificates
 ##############################################################################
 Write-Host "==== SSL CERTIFICATES ===="
-$sslReport = @()
+
+$ID=0
+Write-Host "# Host/Port			IssuedTo		Expires (Remaining)		Issuer"
 
 foreach( $url in $urlsToTest ) {
 
-	If( $url -like "https*" ) {
-		#write-host $url
+	if( $url -like "https*" ) {
+		Write-Verbose "HTTPS url found: $url"
 		$h = [regex]::Replace($url, "https://([a-z\.0-9\-]+).*", '$1')
-		If( ($url.Split(':') | Measure-Object).Count -gt 2 ) {
+		if( ($url.Split(':') | Measure-Object).Count -gt 2 ) {
 			$p = [regex]::Replace($url, "https://[a-z\.0-9\-]+\:(\d+).*", '$1')
-		} Else { $p =	443 }
-		#Write-Host $h on port $p
-
-		If( $ExtraCertDetails ) {
-			$item = "" | select HostName, PortNum, CertName, Thumbprint, Issuer, EffectiveDate, ExpiryDate, DaysToExpire
-		} Else {
-			$item = "" | select HostName, PortNum, CertName, ExpiryDate, DaysToExpire, Issuer
+		} else { 
+			$p =  $DefaultSslPort
 		}
+		Write-Verbose "Checking $h on port $p"
 
-		$item.HostName = $h
-		$item.PortNum = $p
+		$ID+=1		
+		try {
+			$HostConnection = New-Object System.Net.Sockets.TcpClient($h,$p) 
+			try {
+				$Stream = New-Object System.Net.Security.SslStream($HostConnection.GetStream(),$false, {
+					param($sender, $certificate, $chain, $sslPolicyErrors) 
+					return $true 
+				})
+				$Stream.AuthenticateAsClient($h)
+			
+				$sslCertificate = $Stream.Get_RemoteCertificate()
+				$CN=(($sslCertificate.Subject -split "CN=")[1] -split ",")[0]
+				$Issuer=$sslCertificate.Issuer
+				$validTo = [datetime]::Parse($sslCertificate.GetExpirationDatestring())
 
-		If (Test-TcpPort $h $p ) {
-			#Get the certificate from the host
-			$wr = [Net.WebRequest]::Create("https://$h" + ':' + $p)
-		
-			#The following request usually fails for one reason or another:
-			# untrusted (self-signed) cert or untrusted root CA are most common...
-			# we just want the cert info, so it usually doesn't matter
-			Try { 
-				$response = $wr.GetResponse() 
-				#This sometimes results in an empty certificate... probably due to a redirection
-				If( $wr.ServicePoint.Certificate ) {
-					If( $ExtraCertDetails ) {
-						$t = $wr.ServicePoint.Certificate.GetCertHashString()
-						$SslThumbprint = ([regex]::matches($t, '.{1,2}') | %{$_.value}) -join ':'
-						$item.Thumbprint = $SslThumbprint
-						$item.EffectiveDate = $wr.ServicePoint.Certificate.GetEffectiveDateString()
-					}
-					$cn = $wr.ServicePoint.Certificate.GetName()
-					$item.CertName = $cn.Replace('CN=',';').Split(';')[-1].Split(',')[0]
-					$item.Issuer = $wr.ServicePoint.Certificate.Issuer
-					$item.ExpiryDate = $wr.ServicePoint.Certificate.GetExpirationDateString()
-					$validTime = New-Timespan -End $item.ExpiryDate -Start $minValidDate
-					If( $validTime.Days -lt 0 ) {
-						$item.DaysToExpire = "$validTime.Days - *** EXPIRES EARLY *** "
-					} Else {
-						$item.DaysToExpire = $validTime.Days
-					}
+				$validTime = New-Timespan -Start $minValidDate -End $ValidTo 				
+				If( $validTime.Days -lt 0 ) {
+					#To distinguish from "Error Red"
+					$MyFontColor="DarkRed"
+				} Else {
+					$MyFontColor="DarkGreen"
 				}
+				$validDays = $validTime.Days
+
+				Write-Host "$ID $h $p`t$CN`t$validTo ($validDays)`t$Issuer" -ForegroundColor $MyFontColor
 			}
-			Catch{
-				Write-Host "Unable to get certificate for $h on $port"
+
+			catch { throw $_ }
+			finally { $HostConnection.close() }
+		}
+	
+		catch {
+			#Write-Host "$ID	$WebsiteURL	" $_.exception.innerexception.message -ForegroundColor red
+			#unroll the exception
+			$e = $_.Exception
+			$msg = $e.Message
+			while ($e.InnerException) {
+			  $e = $e.InnerException
+			  $msg += ">" + $e.Message
 			}
-			Finally {
-				if( $response ) {
-					$response.Close()
-					Remove-Variable response
-				}
-			}
-			$sslReport += $item
+			Write-Host "$ID	$h	" $msg -ForegroundColor Red
 		}
 	}
 }
-$sslReport | FT -AutoSize
 Write-Host "=========================="
 
 
