@@ -1,5 +1,5 @@
 <#
-	LabStartup Functions - 2017-02-13
+	LabStartup Functions - 2017-02-15
 #>
 
 # Bypass SSL certificate verification (testing)
@@ -159,7 +159,7 @@ Function Report-VpodStatus ([string] $newStatus) {
 		[decimal] $coldStartMin = [math]::Round((Get-RuntimeSeconds $startTime) / 60)
 	}
 	If ( $coldStartMin -lt 1 ) { $coldStartMin = 1}
-	$IPNET = "$coldStartMin.$YEAR.$SKU"
+	If ( $IPNET -ne '192.168.250' ) { $IPNET = "$coldStartMin.$YEAR.$SKU" }
 	$newIP = "$IPNET." + $statusTable[$newStatus]
 	If ($labcheck) {
 		If ( ($statusTable[$newStatus] -gt 202 ) `
@@ -210,6 +210,7 @@ Function Write-VpodProgress ([string] $msg, [string] $code) {
 	  }
 	}
 	Report-VpodStatus $code
+	If ( $code.Contains("FAIL") ) { Exit }
 } #End Write-VpodProgress
 
 Function Get-CloudInfo {
