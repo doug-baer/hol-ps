@@ -152,7 +152,7 @@ $ID=0
 Write-Host "# Host/Port			IssuedTo		Expires (Remaining)		Issuer"
 
 foreach( $url in $urlsToTest ) {
-
+	$url = $url.ToLower()
 	if( $url -like "https*" ) {
 		Write-Verbose "HTTPS url found: $url"
 		$h = [regex]::Replace($url, "https://([a-z\.0-9\-]+).*", '$1')
@@ -203,7 +203,8 @@ foreach( $url in $urlsToTest ) {
 			  $e = $e.InnerException
 			  $msg += ">" + $e.Message
 			}
-			Write-Host "$ID	$h	" $msg -ForegroundColor Red
+			Write-Host "$ID $h	" $msg -ForegroundColor Red
+			Write-Host "*** Please manually check SSL certificate on $h ***" -ForegroundColor DarkRed
 		}
 	}
 }
