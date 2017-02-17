@@ -12,6 +12,8 @@
 							Version 1.01 - 24 February 2016
 							Version 1.02 - 3 August 2016
 							Version 1.03 - 16 February 2017
+							Version 1.04 - 17 February 2017
+							Version 1.1 - 17 February 2017
  
 .EXAMPLE			.\vPodChecker.ps1
 
@@ -25,9 +27,9 @@
 ## USER must provide this list based on what is in your pod
 ## Start by pulling this array from the labStartup file. We'll filter out non-https links
 $URLs = @{
-	'https://vcsa-01a.corp.local:9443/vsphere-client/' = 'vSphere Web Client'
-	'http://stga-01a.corp.local/account/login' = 'FreeNAS'
-	#'https://psc-01a.corp.local/' = 'Platform'
+	'https://vcsa-01a.corp.local/vsphere-client/' = 'vSphere Web Client'
+	'https://vcsa-01a.corp.local/ui/' = 'redirectIfNeeded' #HTML5 client
+	#'http://stga-01a.corp.local/account/login' = 'FreeNAS'
 	}
 
 $urlsToTest = $URLs.Keys | where { $_ -match 'https' } 
@@ -73,7 +75,7 @@ $result = ''
 #Certificate Validation
 $minValidDate = [datetime]"12/31/$minYear"
 
-Write-Host "HOL SSL Certifcates should NOT expire before $minValidDate"
+Write-Host "HOL SSL Certificates should NOT expire before $minValidDate"
 
 
 ##############################################################################
@@ -131,17 +133,6 @@ Function Test-TcpPort ([string]$server, [int]$port) {
 	$socket.Dispose()
 } #End Test-TcpPort
 
-
-##############################################################################
-##### Connect to each vCenter
-##############################################################################
-
-Foreach ($vcserver in $vCenters) {
-	Do {
-		Connect-VC $vcserver $vcuser $password ([REF]$result)
-		Start-Sleep $sleepSeconds
-	} Until ($result -eq "success")
-}
 
 ##############################################################################
 ##### Check and report SSL Certificates
@@ -210,223 +201,231 @@ foreach( $url in $urlsToTest ) {
 }
 Write-Host "=========================="
 
-
 ##############################################################################
-##### Check Host Settings
+##### Test each vCenter's resources
 ##############################################################################
-Write-Host "==== HOST CONFIGURATION - NTP ===="
-$hostReport = @()
-
-##### NTP is configured
-
-$allhosts = Get-VMHost
-foreach ($h in $allhosts) {
-	$row = "" | Select HOSTNAME, NTPDRUNNING, NTPDPOLICY, NTPSERVER
-	$row.HOSTNAME = $h.name
-	$ntpData = Get-VMHostService -VMHost $h	| where { $_.key -eq 'ntpd' }
-	$row.NTPDRUNNING =	$ntpData.Running
-	$row.NTPDPOLICY	=	$ntpData.Policy
-	$row.NTPSERVER	 =	Get-VMHostNtpServer -VMHost $h
-	$hostReport += $row
-}
-$hostReport | ft -auto
-If  ( $row) { Remove-Variable row }
-Write-Host "=========================="
-
-
-##############################################################################
-##### Check vVM Settings
-##############################################################################
-Write-Host "==== L2 VM CONFIGURATION ===="
-$vmReport = @()
-
-##### Report/correct UUID.action setting on vVMs
-
-$allvms = Get-VM
-foreach ($vm in $allvms) {
-	$row = "" | Select VMNAME,OSTYPE,UUIDACTION,TYPEDELAY
-	$row.VMNAME = $vm.name
-	
-	$currentUuidAction = Get-AdvancedSetting -en $vm -name uuid.action
-	$currentUuidActionValue = $currentUuidAction.Value
-	if( $currentUuidActionValue -eq "keep" ) {
-		$row.UUIDACTION = $currentUuidActionValue
-	} elseif(! $currentUuidActionValue ) {
-		try {
-			New-AdvancedSetting -en $vm -name uuid.action -value 'keep' -Confirm:$false -ErrorAction 1 | Out-Null
-			$row.UUIDACTION = "was BLANK"
-		} catch {
-			Write-Host -Fore Red	"Failed to create UUID.action on $($vm.name)"
-			$row.UUIDACTION = "FIXMANUAL"
-		}
-	} else {
-		try {
-			Set-AdvancedSetting $currentUuidAction -value 'keep' -Confirm:$false -ErrorAction 1
-			$row.UUIDACTION = "was $currentUuidActionValue"
-		} catch {
-			Write-Host -Fore Red	"Failed to set UUID.action on $($vm.name)"
-			Write-Host -Fore Red	"	value remains: $((Get-AdvancedSetting -en $vm -name uuid.action).value)"
-			$row.UUIDACTION = "FIXMANUAL"
-		}
-	}
-	
-	##### Report/correct typematic delay... for Linux machines only
-	
-	$row.OSTYPE = $vm.GuestId
-	if( $vm.GuestId -match 'linux|ubuntu|debian|centos|sles|redhat|other' ) {
-		$currentTypeDelay = Get-AdvancedSetting -en $vm -name keyboard.typematicMinDelay
-		$currentTypeDelayValue = $currentTypeDelay.Value
-		if( $currentTypeDelayValue -eq 2000000 ) {
-			$row.TYPEDELAY = $currentTypeDelayValue
-		} elseif(! $currentTypeDelay ) {
-			try {
-				New-AdvancedSetting -en $vm -name keyboard.typematicMinDelay -value 2000000 -Confirm:$false -ErrorAction 1 | Out-Null
-				$row.TYPEDELAY = "was BLANK"
-			} catch {
-				Write-Host -Fore Red	"Failed to create keyboard.typematicMinDelay on $($vm.name)"
-				$row.TYPEDELAY = "FIXMANUAL"
-			}
-
-		} else {
-			try {
-				Set-AdvancedSetting $currentTypeDelay -value 2000000 -Confirm:$false -ErrorAction 1
-				$row.TYPEDELAY = "was $currentTypeDelayValue"
-			} catch {
-				Write-Host -Fore Red "Failed to set keyboard.typematicMinDelay on $($vm.name)"
-				Write-Host -Fore Red	"	value remains: $((Get-AdvancedSetting -en $vm -name keyboard.typematicMinDelay).value)"
-				$row.TYPEDELAY = "FIXMANUAL"
-			}
-		}
-	}
-	$vmReport += $row
-}
-
-$vmReport | ft
-If  ( $row) { Remove-Variable row }
-Write-Host "=========================="
-
-##############################################################################
-##### Check vVM Resource Settings
-##############################################################################
-Write-Host "==== L2 RESOURCE CONFIGURATION ===="
-Write-Host ""
-$vmReport = @()
-
-foreach ($vm in $allvms) {
-	$row = "" | Select VMNAME,CpuReservationMhz,MemReservationGB,CpuSharesLevel,MemSharesLevel
-	$row.VMNAME = $vm.name
-	$row.CpuReservationMhz = $vm.VMResourceConfiguration.CpuReservationMhz
-	$row.MemReservationGB = $vm.VMResourceConfiguration.MemReservationGB
-	$row.CpuSharesLevel = $vm.VMResourceConfiguration.CpuSharesLevel
-	$row.MemSharesLevel = $vm.VMResourceConfiguration.MemSharesLevel
-	
-	If ( $vm.VMResourceConfiguration.CpuReservationMhz ) {
-		Write-Host "Setting " $vm.Name " CPU reservation to 0 per HOL standards..." -foregroundcolor "red"
-		$vm | Get-VMResourceConfiguration | Set-VMResourceConfiguration -CPUReservationMhz 0
-		$row.CpuReservationMhz = "was " + $vm.VMResourceConfiguration.CpuReservationMhz
-	}
-	If ( $vm.VMResourceConfiguration.MemReservationGB ) {
-		Write-Host "Setting " $vm.Name " memory reservation to 0 per HOL standards..." -foregroundcolor "red"
-		$vm | Get-VMResourceConfiguration | Set-VMResourceConfiguration -MemReservationMB 0
-		$row.MemReservationGB = "was " + $vm.VMResourceConfiguration.MemReservationGB
-	}
-	If ( $vm.VMResourceConfiguration.CpuSharesLevel -ne "Normal" ) {
-		#Write-Host "Notification only: " $vm.Name " CPU Shares are: " $vm.VMResourceConfiguration.CpuSharesLevel
-	}
-	If ( $vm.VMResourceConfiguration.MemSharesLevel -ne "Normal" ) {
-		#Write-Host "Notification only: " $vm.Name " CPU Shares are: " $vm.VMResourceConfiguration.MemSharesLevel
-	}
-	$vmReport += $row
-}
-
-$vmReport | ft
-If  ( $row) { Remove-Variable row }
-Write-Host "=========================="
-
-##############################################################################
-##### Check Licensing
-##############################################################################
-
-Write-Host "==== VCENTER LICENSES ===="
-$licenseReport = @()
-
-#check for evaluation licenses in use
-$LM = Get-View LicenseManager
-$LAM = Get-View $LM.LicenseAssignmentManager 
-$param = @($null)
-$assets = $LAM.GetType().GetMethod("QueryAssignedLicenses").Invoke($LAM,$param)
-
-
-foreach ($asset in $assets) {
-	if ( $asset.AssignedLicense.LicenseKey -eq '00000-00000-00000-00000-00000' ) {
-		# special case - make certain nothing is in evaluation mode
-		$name = $asset | Select-Object -ExpandProperty EntityDisplayName
-		Write-Host "Please check EVALUATION assignment on $name!" -foregroundcolor "red"
-		$licensePass = $false
-	}
-}
-	
-# query the license expiration for all installed licenses
-
-foreach( $License in ($LM | Select -ExpandProperty Licenses) ) {
-	if ( !($License.LicenseKey -eq '00000-00000-00000-00000-00000') ) {
-		$row = "" | Select LICENSENAME,LICENSEKEY,EXPIRATION,STATUS
-		$VC = ([Uri]$LM.Client.ServiceUrl).Host
-		$Name = $License.Name
-		$lKey = $License.LicenseKey
-		$used = $License.Used
-		$labels = $License.Labels | Select -ExpandProperty Value
-
-		$row.LICENSENAME = $Name
-		$row.LICENSEKEY = $lKey
-		
-		$expDate = $License.Properties | Where-Object {$_.Key -eq "expirationDate"} | Select-Object -ExpandProperty Value
-
-		if( $expDate ) { 
-			$row.EXPIRATION = $expDate
-		} else {
-			$row.EXPIRATION = 'NEVER'
-		}
-
-		if( $expDate -and (($expDate -ge $chkDateMin) -and ($expDate -le $chkDateMax)) ) {
-			#Write-Verbose "License $Name $lKey is good and expires $expDate"
-			$row.STATUS = 'GOOD'
-			if( $used -eq 0 ) {
-				Write-Host "License $Name is UNASSIGNED and should be removed." -foregroundcolor "yellow"
-				$row.STATUS = 'UNASSIGNED'
-				$licensePass = $false
-			}
-		} else {
-			if( ! $expDate ) {
-				Write-Host "License $Name $lKey NEVER expires!!" -foregroundcolor "red"
-			} else {
-				Write-Host "License $Name $lKey is BAD. It expires $expDate"
-				$row.STATUS = 'EXPIRING'
-			}
-			$licensePass = $false
-		}
-		# need to make certain expDate is AFTER chkDate
-	}
-	$licenseReport += $row
-}
-
-$licenseReport | ft
-
-if( $licensePass ) {
-	Write-Host "Well done! Final result of license check is PASS" -foregroundcolor "green"
-}
-else {
-	Write-Host "Final result of license check is FAIL" -foregroundcolor "red"
-}
-Remove-Variable row
-Write-Host "=========================="
-
-##### Disconnect from all vCenters
 
 Foreach ($vcserver in $vCenters) {
-	Write-Output "$(Get-Date) disconnecting from $vcserver ..."
-	Disconnect-VIServer -Server $vcserver -Confirm:$false
-}
+	Write-Host "$(Get-Date) Connecting to $vcserver ..." -ForegroundColor DarkGreen
+	Do {
+		Connect-VC $vcserver $vcuser $password ([REF]$result)
+		Start-Sleep $sleepSeconds
+	} Until ($result -eq "success")
 
+	##############################################################################
+	##### Check Host Settings
+	##############################################################################
+	Write-Host "==== HOST CONFIGURATION - NTP ===="
+	$hostReport = @()
+
+	##### NTP is configured
+
+	$allhosts = Get-VMHost
+	foreach ($h in $allhosts) {
+		$row = "" | Select HOSTNAME, NTPDRUNNING, NTPDPOLICY, NTPSERVER
+		$row.HOSTNAME = $h.name
+		$ntpData = Get-VMHostService -VMHost $h	| where { $_.key -eq 'ntpd' }
+		$row.NTPDRUNNING =	$ntpData.Running
+		$row.NTPDPOLICY	=	$ntpData.Policy
+		$row.NTPSERVER	 =	Get-VMHostNtpServer -VMHost $h
+		$hostReport += $row
+	}
+	$hostReport | ft -auto
+	If  ( $row) { Remove-Variable row }
+	Write-Host "=========================="
+
+
+	##############################################################################
+	##### Check vVM Settings
+	##############################################################################
+	Write-Host "==== L2 VM CONFIGURATION ===="
+	$vmReport = @()
+
+	##### Report/correct UUID.action setting on vVMs
+
+	$allvms = Get-VM
+	foreach ($vm in $allvms) {
+		$row = "" | Select VMNAME,OSTYPE,UUIDACTION,TYPEDELAY
+		$row.VMNAME = $vm.name
+	
+		$currentUuidAction = Get-AdvancedSetting -en $vm -name uuid.action
+		$currentUuidActionValue = $currentUuidAction.Value
+		if( $currentUuidActionValue -eq "keep" ) {
+			$row.UUIDACTION = $currentUuidActionValue
+		} elseif(! $currentUuidActionValue ) {
+			try {
+				New-AdvancedSetting -en $vm -name uuid.action -value 'keep' -Confirm:$false -ErrorAction 1 | Out-Null
+				$row.UUIDACTION = "was BLANK"
+			} catch {
+				Write-Host -Fore Red	"Failed to create UUID.action on $($vm.name)"
+				$row.UUIDACTION = "FIXMANUAL"
+			}
+		} else {
+			try {
+				Set-AdvancedSetting $currentUuidAction -value 'keep' -Confirm:$false -ErrorAction 1
+				$row.UUIDACTION = "was $currentUuidActionValue"
+			} catch {
+				Write-Host -Fore Red	"Failed to set UUID.action on $($vm.name)"
+				Write-Host -Fore Red	"	value remains: $((Get-AdvancedSetting -en $vm -name uuid.action).value)"
+				$row.UUIDACTION = "FIXMANUAL"
+			}
+		}
+	
+		##### Report/correct typematic delay... for Linux machines only
+	
+		$row.OSTYPE = $vm.GuestId
+		if( $vm.GuestId -match 'linux|ubuntu|debian|centos|sles|redhat|photon|other' ) {
+			$currentTypeDelay = Get-AdvancedSetting -en $vm -name keyboard.typematicMinDelay
+			$currentTypeDelayValue = $currentTypeDelay.Value
+			if( $currentTypeDelayValue -eq 2000000 ) {
+				$row.TYPEDELAY = $currentTypeDelayValue
+			} elseif(! $currentTypeDelay ) {
+				try {
+					New-AdvancedSetting -en $vm -name keyboard.typematicMinDelay -value 2000000 -Confirm:$false -ErrorAction 1 | Out-Null
+					$row.TYPEDELAY = "was BLANK"
+				} catch {
+					Write-Host -Fore Red	"Failed to create keyboard.typematicMinDelay on $($vm.name)"
+					$row.TYPEDELAY = "FIXMANUAL"
+				}
+
+			} else {
+				try {
+					Set-AdvancedSetting $currentTypeDelay -value 2000000 -Confirm:$false -ErrorAction 1
+					$row.TYPEDELAY = "was $currentTypeDelayValue"
+				} catch {
+					Write-Host -Fore Red "Failed to set keyboard.typematicMinDelay on $($vm.name)"
+					Write-Host -Fore Red	"	value remains: $((Get-AdvancedSetting -en $vm -name keyboard.typematicMinDelay).value)"
+					$row.TYPEDELAY = "FIXMANUAL"
+				}
+			}
+		}
+		$vmReport += $row
+	}
+
+	$vmReport | ft
+	If  ( $row) { Remove-Variable row }
+	Write-Host "=========================="
+
+	##############################################################################
+	##### Check vVM Resource Settings
+	##############################################################################
+	Write-Host "==== L2 RESOURCE CONFIGURATION ===="
+	Write-Host ""
+	$vmReport = @()
+
+	foreach ($vm in $allvms) {
+		$row = "" | Select VMNAME,CpuReservationMhz,MemReservationGB,CpuSharesLevel,MemSharesLevel
+		$row.VMNAME = $vm.name
+		$row.CpuReservationMhz = $vm.VMResourceConfiguration.CpuReservationMhz
+		$row.MemReservationGB = $vm.VMResourceConfiguration.MemReservationGB
+		$row.CpuSharesLevel = $vm.VMResourceConfiguration.CpuSharesLevel
+		$row.MemSharesLevel = $vm.VMResourceConfiguration.MemSharesLevel
+	
+		If ( $vm.VMResourceConfiguration.CpuReservationMhz ) {
+			Write-Host "Setting " $vm.Name " CPU reservation to 0 per HOL standards..." -foregroundcolor "red"
+			$vm | Get-VMResourceConfiguration | Set-VMResourceConfiguration -CPUReservationMhz 0
+			$row.CpuReservationMhz = "was " + $vm.VMResourceConfiguration.CpuReservationMhz
+		}
+		If ( $vm.VMResourceConfiguration.MemReservationGB ) {
+			Write-Host "Setting " $vm.Name " memory reservation to 0 per HOL standards..." -foregroundcolor "red"
+			$vm | Get-VMResourceConfiguration | Set-VMResourceConfiguration -MemReservationMB 0
+			$row.MemReservationGB = "was " + $vm.VMResourceConfiguration.MemReservationGB
+		}
+		If ( $vm.VMResourceConfiguration.CpuSharesLevel -ne "Normal" ) {
+			#Write-Host "Notification only: " $vm.Name " CPU Shares are: " $vm.VMResourceConfiguration.CpuSharesLevel
+		}
+		If ( $vm.VMResourceConfiguration.MemSharesLevel -ne "Normal" ) {
+			#Write-Host "Notification only: " $vm.Name " CPU Shares are: " $vm.VMResourceConfiguration.MemSharesLevel
+		}
+		$vmReport += $row
+	}
+
+	$vmReport | ft
+	If  ( $row) { Remove-Variable row }
+	Write-Host "=========================="
+
+	##############################################################################
+	##### Check Licensing
+	##############################################################################
+
+	Write-Host "==== VCENTER LICENSES ===="
+	$licenseReport = @()
+
+	#check for evaluation licenses in use
+	$LM = Get-View LicenseManager
+	$LAM = Get-View $LM.LicenseAssignmentManager 
+	$param = @($null)
+	$assets = $LAM.GetType().GetMethod("QueryAssignedLicenses").Invoke($LAM,$param)
+
+
+	foreach ($asset in $assets) {
+		if ( $asset.AssignedLicense.LicenseKey -eq '00000-00000-00000-00000-00000' ) {
+			# special case - make certain nothing is in evaluation mode
+			$name = $asset | Select-Object -ExpandProperty EntityDisplayName
+			Write-Host "Please check EVALUATION assignment on $name!" -foregroundcolor "red"
+			$licensePass = $false
+		}
+	}
+	
+	# query the license expiration for all installed licenses
+
+	foreach( $License in ($LM | Select -ExpandProperty Licenses) ) {
+		if ( !($License.LicenseKey -eq '00000-00000-00000-00000-00000') ) {
+			$row = "" | Select LICENSENAME,LICENSEKEY,EXPIRATION,STATUS
+			$VC = ([Uri]$LM.Client.ServiceUrl).Host
+			$Name = $License.Name
+			$lKey = $License.LicenseKey
+			$used = $License.Used
+			$labels = $License.Labels | Select -ExpandProperty Value
+
+			$row.LICENSENAME = $Name
+			$row.LICENSEKEY = $lKey
+		
+			$expDate = $License.Properties | Where-Object {$_.Key -eq "expirationDate"} | Select-Object -ExpandProperty Value
+
+			if( $expDate ) { 
+				$row.EXPIRATION = $expDate
+			} else {
+				$row.EXPIRATION = 'NEVER'
+			}
+
+			if( $expDate -and (($expDate -ge $chkDateMin) -and ($expDate -le $chkDateMax)) ) {
+				#Write-Verbose "License $Name $lKey is good and expires $expDate"
+				$row.STATUS = 'GOOD'
+				if( $used -eq 0 ) {
+					Write-Host "License $Name is UNASSIGNED and should be removed." -foregroundcolor DarkRed
+					$row.STATUS = 'UNASSIGNED'
+					$licensePass = $false
+				}
+			} else {
+				if( ! $expDate ) {
+					Write-Host "License $Name $lKey NEVER expires!!" -foregroundcolor Red
+				} else {
+					Write-Host "License $Name $lKey is BAD. It expires $expDate" -ForegroundColor Red
+					$row.STATUS = 'EXPIRING'
+				}
+				$licensePass = $false
+			}
+			# need to make certain expDate is AFTER chkDate
+		}
+		$licenseReport += $row
+	}
+
+	$licenseReport | ft
+
+	if( $licensePass ) {
+		Write-Host "Well done! Final result of $vcserver license check is PASS" -foregroundcolor "green"
+	}
+	else {
+		Write-Host "Final result of $vcserver license check is FAIL" -foregroundcolor "red"
+	}
+	Remove-Variable row
+	Write-Host "=========================="
+
+	##### Disconnect from current vCenter
+	Write-Host "$(Get-Date) disconnecting from $vcserver ..." -ForegroundColor DarkGreen
+	Disconnect-VIServer -Server $vcserver -Confirm:$false
+
+} # for each vCenter
 
 ###### END ######
