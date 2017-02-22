@@ -245,10 +245,14 @@ Catch {
 ## DO NOT UNINSTALL POWERCLI FROM THE VPOD
 Try {
 	#For PowerCLI v6.x
-	#$PowerCliInit = 'C:\Program Files (x86)\VMware\Infrastructure\vSphere PowerCLI\Scripts\Initialize-PowerCLIEnvironment.ps1'
+	$PowerCliInit60 = 'C:\Program Files (x86)\VMware\Infrastructure\vSphere PowerCLI\Scripts\Initialize-PowerCLIEnvironment.ps1'
 	#For PowerCLI v6.5
-	$PowerCliInit = 'C:\Program Files (x86)\VMware\Infrastructure\PowerCLI\Scripts\Initialize-PowerCLIEnvironment.ps1'
-	. $PowerCliInit $true
+	$PowerCliInit65 = 'C:\Program Files (x86)\VMware\Infrastructure\PowerCLI\Scripts\Initialize-PowerCLIEnvironment.ps1'
+	if( Test-Path $PowerCliInit65 ) {
+		. $PowerCliInit65 $true
+	} else {
+		. $PowerCliInit60
+	}
 } 
 Catch {
 	Write-Host "No PowerCLI found, unable to continue."
