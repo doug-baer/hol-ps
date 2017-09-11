@@ -220,7 +220,7 @@ Function Report-VpodStatus ([string] $newStatus) {
 	}
 	$bcast = "$IPNET." + "255"
 	#replace the IP address on the vpodrouter's 6th NIC with our indicator code
-	$lcmd = "sudo /sbin/ifconfig eth5 broadcast $bcast netmask 255.255.255.254 $newIP"
+	$lcmd = "sudo /sbin/ifconfig eth5 $newIP broadcast $bcast netmask 255.255.255.254"
 	
 	#need retry code here to allow for vPodRouter reboot events due to cloud info
 	$wcmd = "Echo Y | $plinkPath -ssh router.corp.local -l holuser -pw VMware1! $lcmd  2>&1"
