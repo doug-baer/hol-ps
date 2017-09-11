@@ -1,5 +1,5 @@
 <#
-	LabStartup Functions - 2017-02-15
+	LabStartup Functions - 2017-09-11
 #>
 
 # Bypass SSL certificate verification (testing)
@@ -175,7 +175,7 @@ Function Report-VpodStatus ([string] $newStatus) {
 	}
 	$bcast = "$IPNET." + "255"
 	#replace the IP address on the vpodrouter's 6th NIC with our indicator code
-	$lcmd = "sudo /sbin/ifconfig eth5 broadcast $bcast netmask 255.255.255.0 $newIP"
+	$lcmd = "sudo /sbin/ifconfig eth5 broadcast $bcast netmask 255.255.255.254 $newIP"
 	
 	#need retry code here to allow for vPodRouter reboot events due to cloud info
 	$wcmd = "Echo Y | $plinkPath -ssh router.corp.local -l holuser -pw VMware1! $lcmd  2>&1"
