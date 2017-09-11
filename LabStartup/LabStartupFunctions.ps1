@@ -1,5 +1,5 @@
 <#
-	LabStartup Functions - 2017-09-11
+	LabStartup Functions - 2017-09-11-02
 #>
 
 # Bypass SSL certificate verification (testing)
@@ -15,6 +15,51 @@ add-type @"
 	}
 "@
 [System.Net.ServicePointManager]::CertificatePolicy = New-Object TrustAllCertsPolicy
+
+# Define new PowerShell type to detect intereractive use
+Add-Type @'
+using System;
+using System.Diagnostics;
+using System.Runtime.InteropServices;
+
+namespace PInvoke.Win32 {
+
+  public static class UserInput {
+
+    [DllImport("user32.dll", SetLastError=false)]
+    private static extern bool GetLastInputInfo(ref LASTINPUTINFO plii);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct LASTINPUTINFO {
+      public uint cbSize;
+      public int dwTime;
+    }
+
+    public static DateTime LastInput {
+      get {
+        DateTime bootTime = DateTime.UtcNow.AddMilliseconds(-Environment.TickCount);
+        DateTime lastInput = bootTime.AddMilliseconds(LastInputTicks);
+        return lastInput;
+      }
+    }
+
+    public static TimeSpan IdleTime {
+      get {
+        return DateTime.UtcNow.Subtract(LastInput);
+      }
+    }
+
+    public static int LastInputTicks {
+      get {
+        LASTINPUTINFO lii = new LASTINPUTINFO();
+        lii.cbSize = (uint)Marshal.SizeOf(typeof(LASTINPUTINFO));
+        GetLastInputInfo(ref lii);
+        return lii.dwTime;
+      }
+    }
+  }
+}
+'@
 
 # Windows vCenter services
 # services start top to bottom (services are dependent on the services above them)
@@ -442,6 +487,62 @@ Function Start-Nested ( [array] $records ) {
 		}
 	}
 } #End Start-Nested
+
+Function Connect-Restart-HVCS ([array]$HVCSURLs, [array]$HVCSservices, [REF]$maxMins) {
+
+	Foreach ($url in $($HVCSURLs.Keys)) {
+		$HVCSrestarted = $false
+		$HVCSstartTime = $(Get-Date) # not totally accurate but simple
+		$tmp = $url.Split("/")
+		$HVCS = $tmp[2]
+		Do {
+			Test-Ping $HVCS ([REF]$result)
+			If ($result -ne "success") { LabStartup-Sleep $sleepSeconds }
+		} Until ($result -eq "success" )
+		Foreach ($service in $HVCSservices) {
+			$windowsService = $HVCS + ":" + $service
+			StartWindowsServices $windowsService
+		}
+		# test the URL and if not ready check the time, then reboot
+		Do {
+			$currentRunningSeconds = Get-RuntimeSeconds $HVCSstartTime
+			$currentRunningMinutes = $currentRunningSeconds / 60
+			Test-URL $url $URLs[$url] ([REF]$result)
+			If ( $result -eq "success" ) { Continue }
+			If ( $currentRunningMinutes -gt $HVCSBootMinutes ) {
+				If ( $HVCSrestarted -eq $false ) {  # try restarting HVCS to fix the issue
+					Write-Output "Restarting HVCS $HVCS..."
+					$wresult = ""
+					$wcmd = "shutdown /m \\$HVCS /r /t 0"
+					$msg = RunWinCmd $wcmd ([REF]$wresult)
+					If ($wresult -eq "success" ) {
+						$HVCSrestarted = $true
+						$HVCSstartTime = $(Get-Date)
+						# add more time before fail due to HVCS reboot
+						$maxMinutesBeforeFail = $maxMinutesBeforeFail + $HVCSBootMinutes
+						# reset the currentRunningMinutes
+						$currentRunningSeconds = Get-RuntimeSeconds $HVCSstartTime
+						$currentRunningMinutes = $currentRunningSeconds / 60
+						Do {
+							Test-Ping $HVCS ([REF]$result)
+							If ($result -ne "success") { LabStartup-Sleep $sleepSeconds }
+						} Until ($result -eq "success" )
+						Foreach ($service in $HVCSservices) {
+							$windowsService = $HVCS + ":" + $service
+							StartWindowsServices $windowsService
+						}
+					} Else {
+						LabFail "Cannot reboot $HVCS.  Failing lab."
+					}
+				} Else {
+					LabFail "Cannot reach $url after $HVCS reboot.  Failing lab."
+				}
+			}
+			LabStartup-Sleep $sleepSeconds
+		} Until ($result -eq "success")
+	}
+	$maxMins.value = $maxMinutesBeforeFail
+} #End Connect-Restart-HVCS
 
 Function Test-Ping ([string]$server, [REF]$result) {
 <#
@@ -1117,3 +1218,92 @@ Function Create-LabCheck-Task
 	}
 
 } # End Create-LabCheck-Task
+
+Function Add-Route
+{
+	<#
+	.SYNOPSIS
+		This function adds a route to the vPodRouter both dynamically and peristently
+	.DESCRIPTION
+		This function adds a route to the vPodRouter both dynamically and peristently
+	.INPUTS
+		String: network
+		String netmask
+		String gateway
+	.OUTPUTS
+		None.
+	.LINK
+		None.
+	#>
+	[CmdletBinding()]
+	PARAM(
+		[
+			parameter(
+				Mandatory = $true,
+				HelpMessage = "Specify the network value such as 172.16.0.0",
+				ValueFromPipeline = $false
+			)
+		]
+		[String]
+		$network,
+		[
+			parameter(
+				Mandatory = $true,
+				HelpMessage = "Specify the netmask value such as 255.255.0.0",
+				ValueFromPipeline = $false
+			)
+		]
+		[String]
+		$netmask,
+		[
+			parameter(
+				Mandatory = $true,
+				HelpMessage = "Specify the gateway value such as 192.168.110.92",
+				ValueFromPipeline = $false
+			)
+		]
+		[String]
+		$gateway
+	)
+	BEGIN {
+		$remoteHost = 'router.corp.local'
+		# create the regex strings
+		$regNet = $network.Replace('.', '\.')
+		$regMask = $netmask.Replace('.', '\.')
+		$regGW = $gateway.Replace('.', '\.')
+		# add some convenience variables
+		$n = "\\n"
+		$sh = "/root/addroute.sh"
+		$infRoot = "/root/interfaces"
+		$infEtc = "/etc/network/interfaces"
+		$routeCmd = "/sbin/route add -net $network netmask $netmask gw $gateway"
+		# before adding the route, verify that the route does not already exist and that we can login to the router
+		# this uses a PowerShell "here" command syntax so the Linux pipe character is sent as a literal
+		$grepRouteCmd = @"
+"route | grep $network"
+"@
+		# this uses a PowerShell "here" command syntax so the Linux sed string is sent as a literal
+		$addRouteCmd = @"
+"echo sed -e \'s/^auto eth2/post-up route add -net $regNet netmask $regMask gw $regGW$n`pre-down route del -net $regNet netmask $regMask gw $regGW$n$n'auto' eth2/g\' $infEtc > $sh;echo $routeCmd >> $sh;sh $sh > $infRoot;mv $infRoot $infEtc"
+"@
+		
+	}
+
+	PROCESS {
+	
+		$msg = Invoke-Expression "Echo Y | $plinkPath -ssh $remoteHost -l $linuxuser -pw $linuxpassword $grepRouteCmd"
+		If ( $msg ) {
+			Write-Host "$network route already present. Nothing to do."
+			Return
+		}
+
+		Write-Host "Adding route $network $netmask $gateway"
+		Invoke-Expression "Echo Y | $plinkPath -ssh $remoteHost -l $linuxuser -pw $linuxpassword $addRouteCmd"
+
+	}
+	
+	END {
+		#return $registeredTask
+	}
+
+} # End Add-Route
