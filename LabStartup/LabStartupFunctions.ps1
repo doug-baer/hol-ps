@@ -1,5 +1,5 @@
 <#
-	LabStartup Functions - 2017-09-11-02
+	LabStartup Functions - 2017-09-20-01
 #>
 
 # Bypass SSL certificate verification (testing)
@@ -142,6 +142,7 @@ Function Invoke-Plink ([string]$remoteHost, [string]$login, [string]$passwd, [st
 	Invoke-Expression "Echo Y | $plinkPath -ssh $remoteHost -l $login -pw $passwd $command"
 } #End Invoke-Plink
 
+
 Function Invoke-PlinkKey ([string]$puttySession, [string]$command) {
 <#
 	This function executes the specified command on the remote host via SSH
@@ -150,6 +151,7 @@ Function Invoke-PlinkKey ([string]$puttySession, [string]$command) {
 #>
 	Invoke-Expression "Echo Y | $plinkPath -ssh -load $puttySession $command"
 } #End Invoke-PlinkKey
+
 
 Function Invoke-Pscp ([string]$login, [string]$passwd, [string]$sourceFile, [string]$destFile) {
 <#
@@ -162,6 +164,7 @@ Function Invoke-Pscp ([string]$login, [string]$passwd, [string]$sourceFile, [str
 	Invoke-Expression "$pscpPath -l $login -pw $passwd $sourceFile $destFile"
  
 } #End Invoke-Pscp
+
 
 Function RunWinCmd ([string]$wcmd, [REF]$result, [string]$remoteServer, [string]$remoteUser, [string]$remotePass) {
 <#
@@ -198,13 +201,14 @@ Function RunWinCmd ([string]$wcmd, [REF]$result, [string]$remoteServer, [string]
 	}
 } #End RunWinCmd
 
+
 Function Report-VpodStatus ([string] $newStatus) {
+<#
+	Updates eth5 on vpodrouter with the encoded status code
+	REQUIRES $plinkPath, $statusTable, $IPNET
+#>
 	$server = 'router.corp.local'
-	If ( -Not $labcheck ) { # record cold start runtime minutes on first octet if not labcheck
-		[decimal] $coldStartMin = [math]::Round((Get-RuntimeSeconds $startTime) / 60)
-	}
-	If ( $coldStartMin -lt 1 ) { $coldStartMin = 1}
-	If ( $IPNET -ne '192.168.250' ) { $IPNET = "$coldStartMin.$YEAR.$SKU" }
+	If ( $IPNET -ne '192.168.250' ) { $IPNET = "192.$YEAR.$SKU" }
 	$newIP = "$IPNET." + $statusTable[$newStatus]
 	If ($labcheck) {
 		If ( ($statusTable[$newStatus] -gt 202 ) `
@@ -235,10 +239,16 @@ Function Report-VpodStatus ([string] $newStatus) {
 	$currentStatus = $newStatus
 } #End Report-VpodStatus
 
+
 Function Write-VpodProgress ([string] $msg, [string] $code) {
+<#
+	Writes progress to DesktopInfo.ini
+	If LabCheck and not a FAIL, do nothing
+#>
 	$myTime = $(Get-Date)
-	If ( -Not $labcheck ) {
-	  If( $msg -eq 'Ready' ) {
+	
+	If( $msg -eq 'Ready' ) {
+		#ALWAYS process a READY
 		$dateCode = "{0:D2}/{1:D2} {2:D2}:{3:D2}" -f $myTime.month,$myTime.day,$myTime.hour,$myTime.minute
 		Set-Content -Value ([byte[]][char[]] "$msg $dateCode") -Path $statusFile -Encoding Byte
 		#also change text color to Green (55cc77) in desktopInfo
@@ -249,14 +259,28 @@ Function Write-VpodProgress ([string] $msg, [string] $code) {
 			}
 			$line
 		} | Out-File -FilePath $desktopInfoIni -encoding "ASCII"
-		} Else {
-		$dateCode = "{0:D2}:{1:D2}" -f $myTime.hour,$myTime.minute
-		Set-Content -Value ([byte[]][char[]] "$dateCode $msg ") -Path $statusFile -Encoding Byte
-	  }
-	}
+	} Else {
+		If( -Not $labcheck ) {
+			$dateCode = "{0:D2}:{1:D2}" -f $myTime.hour,$myTime.minute
+			Set-Content -Value ([byte[]][char[]] "$dateCode $msg ") -Path $statusFile -Encoding Byte
+		}
+	} 
 	Report-VpodStatus $code
-	If ( $code.Contains("FAIL") ) { Exit }
+	If ( $code.Contains("FAIL") ) { 
+		#change text color to Red (3A3AFA) in desktopInfo
+		#Startup may have been successful and GREEN, but LabCheck failure: mark RED and FAIL
+		(Get-Content $desktopInfoIni) | % { 
+			$line = $_
+			If( $line -match 'Lab Status' ) {
+				$line = $line -replace '55CC77','3A3AFA'
+			}
+			$line
+		} | Out-File -FilePath $desktopInfoIni -encoding "ASCII"
+		
+		Exit
+	}
 } #End Write-VpodProgress
+
 
 Function Get-CloudInfo {
 # try to determine current cloud using vPodRouter guestinfo

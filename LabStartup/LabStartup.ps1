@@ -1,61 +1,40 @@
 <#
-
 .SYNOPSIS
-Performs various tasks to ensure that a vPod is ready to run, and then provides 
-feedback to the user (via DesktopInfo) and HOL management system via vpodrouter NIC.
+Performs  tasks to ensure that a vPod is ready to run, providing feedback to the user 
+via DesktopInfo and the HOL management system via the IP address on vpodrouter NIC eth5.
 
 .DESCRIPTION
 Checks storage, connects to vCenter(s), powers up vVMs/vApps, waits for availability of services 
-on TCP ports or via URLs. Records progress into a log file and simple status into a file 
+on TCP ports or via URLs. Records detailed progress to a log file and simple status into a file 
 for consumption by DesktopInfo. Modifies 6th NIC on vpodrouter to report status upstream.
 
 .NOTES
-LabStartup.ps1 - February 15, 2017
-* A majority of the functions are loaded via C:\HOL\LabStartupFunctons.ps1
-* URLs must begin with http:// or https:// (with valid certificate)
-* The IP address on the eth5 NIC of the vpodrouter is set using SSH (plink.exe) 
-  and sudo (installed on the vpodrouter) using the "holuser" account. 
-* NEW: set $vPodSKU variable to pod's SKU
-* NEW: option to run LabStartup periodically with command line "labcheck"
+LabStartup.ps1 - version 2.0 - 25 September 2017
 
 .EXAMPLE
 LabStartup.ps1
 .EXAMPLE
 C:\WINDOWS\system32\windowspowershell\v1.0\powershell.exe -windowstyle hidden "& 'c:\HOL\LabStartup.ps1'"
-
-.INPUTS
-NONE
-
-.OUTPUTS
-Log messages are written to the console or redirected to an output file and 
-C:\HOL\startup_status.txt ($statusFile) is updated with periodic status for consumption by 
-DesktopInfo.exe using the Write-VpodProgress function.
-The IP address of the 6th NIC on the vpodrouter (router.corp.local) is modified 
-with an encoded status code as the script progresses.
-Upon failure, whether explicit or via script timeout, the script will set the FAILURE 
-indicator and halt
 #>
 
-# include the LabStartup functions from the same directory as LabStartup.ps1
-$Invocation = (Get-Variable MyInvocation).Value
-$InvocationPath = Join-Path (Split-Path $Invocation.MyCommand.Path) 'LabStartupFunctions.ps1'
-If( Test-Path $InvocationPath ) {
-	. $InvocationPath
-	Write-Verbose "Loading functions from $InvocationPath"
-} Else {
-	Write-Verbose "ERROR: Unable to find $InvocationPath"
-	Break
-}
-
-$startTime = $(Get-Date)
+#Disable name validation until we have a chance to update everything
+$LabStartupModulePath = 'C:\HOL\LabStartupFunctions.psm1'
+If( Test-Path $LabStartupModulePath ) { Import-Module $LabStartupModulePath -DisableNameChecking }
+#Run the module's Init function (sets global $startTime value to NOW)
+Init
 Write-Output "$startTime beginning LabStartup"
+
+#ATTENTION: Remove the next three lines when you implement this script for your pod
+Set-Content -Value "Implement LabStartup" -Path $statusFile
+Write-Output "LabStartup script has not been implemented yet. Please ask for assistance if you need it."
+Exit
 
 ##############################################################################
 ##### User Variables
 ##############################################################################
 
-# The SKU of this pod
-# You must update this variable to the SKU of your lab.
+# You must update this variable to the co-op ID of your lab.
+# For example, "HOL-1910"
 $vPodSKU = 'HOL-BADSKU'
 
 # Credentials used to login to vCenters
@@ -67,248 +46,90 @@ $password = 'VMware1!'
 $linuxuser = 'root'
 $linuxpassword = 'VMware1!'
 
-#Set the root of the script
-$labStartupRoot = 'C:\HOL'
-#this file is used to report status via DesktopInfo
-$statusFile = Join-Path $labStartupRoot 'startup_status.txt'
-# sleep time between checks
-$sleepSeconds = 10
-# number of minutes it takes vCenter to boot before API connection
-$vcBootMinutes = 10
-# if still running this long, fail the pod (pod Timeout)
-$maxMinutesBeforeFail = 30
-# specify in hours how often LabStartup should re-check lab status. Must be longer than $maxMinutesBeforeFail
-# if 0, then LabStartup will be run at vPod boot only
-$LabCheckInterval = 1
-# initial ready time is recorded in this file
-$readyTimeFile = Join-Path $labStartupRoot 'readyTime.txt'
-# path to Plink.exe -- for status & managing Linux
-$plinkPath =  Join-Path $labStartupRoot 'Tools\plink.exe'
-# path to pscp.exe -- for transferring files to Linux
-# you must place pscp.exe in this path in order to use the Invoke-Pscp function
-$pscpPath =  Join-Path $labStartupRoot 'Tools\pscp.exe'
-# path to PsExec64.exe for using RunWinCmd with a remote Windows machine
-$psexecPath = Join-Path $labStartupRoot 'Tools\PsExec64.exe'
-# path to desktopInfo file for status reporting
-$desktopInfoIni = 'C:\DesktopInfo\DesktopInfo.ini'
 #must be defined in order to pass as reference for looping
 $result = ''
-
 
 ##############################################################################
 ### Populate the following with values appropriate to your lab
 ##############################################################################
 
-# FQDN(s)of vCenter server(s) or ESXi server(s)
-# if nesting a single VM to enable uuid.action = "keep", use local ESXi storage.
-# No need to include vCenter in the vPod if not showing vCenter in the lab 
-$vCenters = @(
-	'vcsa-01a.corp.local:linux'
-	#'vcsa-01b.corp.local:linux'
-	#'vc-01a.corp.local:windows'
-	#'esx-01a.corp.local:esx'
-)
-# Will test ESXi hosts are responding on port 22
-# be sure to enable SSH on all HOL vESXi hosts
-$ESXiHosts = @(
-	'esx-01a.corp.local:22'
-	'esx-02a.corp.local:22'
-	'esx-03a.corp.local:22'
-	#'esx-01b.corp.local:22'
-	#'esx-02b.corp.local:22'
-	#'esx-03b.corp.local:22'
-)
+# these arrays are populated with values stored in files in C:\HOL\Resources
+$theArrays = ("VCENTERS","ESXIHOSTS","DATASTORES",
+				"WINDOWSSERVICES","LINNUXSERVICES",
+				"VMS","VAPPS",
+				"TCPSERVICES","PINGS","URLS" )
 
-# datastore names in vCenter(s)
-$datastores = @(
-	#'VSAN:RegionA01-VSAN-COMP01'
-	#'VSAN:RegionB01-VSAN-COMP01'
-	'stga-01a.corp.local:RegionA01-ISCSI01-COMP01'
-	#'stga-01a.corp.local:RegionB01-ISCSI01-COMP01'
-)
-
-# Windows Services to be checked / started
-# uncomment, add or edit if service is present in your lab
-$windowsServices = @(
-	#'controlcenter.corp.local:VMTools'
-	#'srm-01a.corp.local:vmware-dr-vpostgres' # Site A SRM embedded database
-	#'srm-01a.corp.local:vmware-dr' # Site A SRM server
-	#'srm-01b.corp.local:vmware-dr-vpostgres' # Site B SRM embedded database
-	#'srm-01b.corp.local:vmware-dr' # Site A SRM server
-)
-
-#Linux Services to be checked / started
-$linuxServices = @(
-	'vcsa-01a.corp.local:vsphere-client'  # include this entry if using a vCenter appliance
-	#'vcsa-01b.corp.local:vsphere-client'
-)
-
-# Nested Virtual Machines to be powered on
-# if multiple vCenters, specify the FQDN of the owning vCenter after the colon
-# optionally indicate a pause with the "Pause" record.  In this case the number 
-#  after the colon is the number of seconds to wait before continuing.
-$VMs = @(
-#	'linux-base-01a'
-#	'Pause:30'
-#	'linux-desk-01a:vcsa-01a.corp.local'
-#	'single-vm:esx-01a.corp.local' # if not using vCenter, specify ESXi host
-	)
-
-# as with vVMs, the format of these entries is VAPPNAME:VCENTER
-$vApps = @(
-#	'example vApp:vcsa-01a.corp.local'
-)
-
-#TCP Ports to be checked
-$TCPservices = @(
-#	'vcsa-01a.corp.local:443'
-)
-
-#URLs to be checked for specified text in response
-$URLs = @{
-	'https://vcsa-01a.corp.local/vsphere-client/' = 'vSphere Web Client'
-	#'https://vcsa-01b.corp.local/vsphere-client/' = 'vSphere Web Client'
-	#'https://webapp.corp.local/cgi-bin/hol.cgi' = 'HOL - Multi-Tier App'
-	#'http://stga-01a.corp.local/account/login' = 'FreeNAS'
-	#'https://psc-01a.corp.local/websso/' = 'Welcome'
-	}
-
-# IP addresses to be pinged
-$Pings = @(
-	#'192.168.110.1'
-)
+$theArrays | % {
+	Set-Variable -Name $_ -Value $(Read-FileIntoArray $_) -Scope Global
+}
 
 ##############################################################################
 ##### Preliminary Tasks
 ##############################################################################
 
-# determine if this is first run or a labcheck run
-If ( $args[0] -eq 'labcheck' ) { 
-	$labcheck = $true
-	$coldStartMin = Get-Content ($readyTimeFile)
-} Else { $labcheck = $false }
+###
+# Record whether this is a first run or a LabCheck execution
+$LabCheck = Test-LabCheck $args[0]
 
-#Remove the file that causes the "Reset" message in Firefox
-$userProfilePath = (Get-Childitem env:UserProfile).Value
-$firefoxProfilesPath = Join-Path $userProfilePath 'AppData\Roaming\Mozilla\Firefox\Profiles'
-If( Test-Path $firefoxProfilesPath ) { $firefoxProfiles = Get-ChildItem $firefoxProfilesPath }
-Foreach ($firefoxProfile in $firefoxProfiles) {
-	$firefoxLock = Join-Path $firefoxProfile.FullName 'parent.lock'
-	Try {
-		Remove-Item $firefoxLock -ErrorAction SilentlyContinue | Out-Null 
-	}
-	Catch {
-		Write-Output "Firefox parent.lock not removed."
-	}
-} #END Fix Firefox Reset Message
+###
+#Perform some cleanup. Uses the LabCheck variable to ensure these happen at pod startup only
+If( -not $LabCheck ) {
+    CleanFirefoxAnnoyFile
+    ResetModuleSwitcherState
+}
 
-#Clean up HOL ModuleSwitcher state file(s)
-$ModuleSwitcherPath = 'C:\HOL\ModuleSwitcher'
-$ModuleSwitcherStateFiles = Get-ChildItem -Path $ModuleSwitcherPath -Filter 'currentModule.txt' -Recurse
-$ModuleSwitcherStateFiles += Get-ChildItem -Path $ModuleSwitcherPath -Filter 'currentMessage.txt' -Recurse
-Foreach ($ModuleSwitcherStateFile in $ModuleSwitcherStateFiles) {
-	Try {
-		Remove-Item $ModuleSwitcherStateFile.FullName -ErrorAction SilentlyContinue | Out-Null 
-	}
-	Catch {
-		Write-Output "$($ModuleSwitcherStateFile.FullName) not removed."
-	}	
-} #END Clean up HOL Module Switcher state file(s)
-
+###
 # Use the configured Lab SKU to configure eth5 on vpodrouter
-# bad SKU is a hard failure
-If ( $vPodSKU -eq 'HOL-BADSKU' ) {
-	# Problems: Use the default IP network and FAIL
-	Write-Output "ERROR - lab SKU not updated: $vPodSKU"
-	$IPNET= '192.168.250'
-	# fail the script 
-	Write-VpodProgress "FAIL-Bad Lab SKU" 'FAIL-1'
-}
-$TMP = $vPodSKU.Split('-')
-Try {
-# the YEAR is the first two characters of the last field as an integer
-	$YEAR = [int]$TMP[$TMP.length - 1].SubString(0,2)
-	# the SKU is the rest of the last field beginning with the third character as an integer (no leading zeroes)
-	$SKU = [int]$TMP[$TMP.length - 1].SubString(2)
-	$IPNET = "192.$YEAR.$SKU"
-}
-Catch {
-	# Problems: Use the default IP network and FAIL
-	Write-Output "ERROR - malformed lab SKU: $TMP"
-	$IPNET= '192.168.250'
-	# fail the script 
-	Write-VpodProgress "FAIL-Bad Lab SKU" 'FAIL-1'
-}
+# A bad SKU is a hard failure
+Parse-LabSKU $vPodSKU
 
-
-#Load the VMware PowerCLI tools - no PowerCLI is fatal. 
-## DO NOT UNINSTALL POWERCLI FROM THE VPOD
-Try {
-	#For PowerCLI v6.x
-	$PowerCliInit60 = 'C:\Program Files (x86)\VMware\Infrastructure\vSphere PowerCLI\Scripts\Initialize-PowerCLIEnvironment.ps1'
-	#For PowerCLI v6.5
-	$PowerCliInit65 = 'C:\Program Files (x86)\VMware\Infrastructure\PowerCLI\Scripts\Initialize-PowerCLIEnvironment.ps1'
-	if( Test-Path $PowerCliInit65 ) {
-		. $PowerCliInit65 $true
-	} else {
-		. $PowerCliInit60
-	}
-} 
-Catch {
-	Write-Host "No PowerCLI found, unable to continue."
-	Write-VpodProgress "FAIL - No PowerCLI" 'FAIL-1'
-	Break
-} 
+#Lack of PowerCLI is fatal: DO NOT UNINSTALL POWERCLI FROM THE VPOD
+Test-PowerCLI
 
 ##############################################################################
 ##### Main LabStartup
 ##############################################################################
 
 If ( $labcheck ) {
-	Write-Host "LabCheck is active. Skipping Start-AutoLab."
+	Write-Host "`n$(Get-Date)LabCheck is active. Skipping Start-AutoLab."
 } Else {
 	#Please leave this line here to enable scale testing automation 
 	If( Start-AutoLab ) { Exit } Write-Output "No autolab.ps1 found, continuing."
 }
 
-#ATTENTION: Remove the next three lines when you implement this script for your pod
-Set-Content -Value "Implement LabStartup" -Path $statusFile
-Write-Output "LabStartup script has not been implemented yet. Please ask for assistance if you need it."
-Exit
-
-
 #Report Initial State
 # Write-Output writes to the C:\HOL\Labstartup.log file
 # Write-VpodProgress writes to the DesktopInfo
-Write-Output "$(Get-Date) Beginning Main script"
+Write-Output "`n$(Get-Date) Beginning Main script"
 Write-VpodProgress "Not Ready" 'STARTING'
 
 ##############################################################################
 ##### Lab Startup - STEP #1 (Infrastructure) 
 ##############################################################################
 
-#Testing vESXi hosts are online
+###
+#Testing that vESXi hosts are online: all hosts must respond before continuing
 Write-VpodProgress "Checking vESXi" 'STARTING'
 Foreach ($ESXihost in $ESXiHosts) {
-	($server,$port) = $ESXiHost.Split(":")
+	#check all on port 22
 	Do {
-		Test-TcpPortOpen $server $port ([REF]$result)
+		Test-TcpPortOpen $ESXiHost 22 ([REF]$result)
 		LabStartup-Sleep $sleepSeconds
 	} Until ($result -eq "success")
 }
 
-Write-VpodProgress "Connecting vCenter" 'STARTING'
-
-
-# attempt to connect to each vCenter and restart if no connection by $vcBootMinutes
+###
 # Attempt to connect to each vCenter. Restart if no connection within $vcBootMinutes
 # only ONE vCenter restart will be attempted then the lab will fail.
 # this could be an ESXi host although no restart will be attempted.
+Write-VpodProgress "Connecting vCenters" 'STARTING'
 $maxMins = 0
 Connect-Restart-vCenter $vCenters ([REF]$maxMins)
 $maxMinutesBeforeFail = $maxMins
 
-# check the FreeNAS NFS datastores and reboot storage if necessary 
+###
+# Check the FreeNAS datastores and reboot storage if necessary
+# a reboot is rare and typically only needed for NFS share failure
 Foreach ($dsLine in $datastores) {
 	Do { 
 		Check-Datastore $dsLine ([REF]$result)
@@ -320,15 +141,22 @@ Foreach ($dsLine in $datastores) {
 ##### Lab Startup - STEP #2 (Starting Nested VMs and vApps) 
 ##############################################################################
 
-Write-VpodProgress "Starting vVMs" 'STARTING'
-
+###
 # Use the Start-Nested function to start batches of nested VMs and/or vApps
 # Create additional arrays for each batch of VMs and/or vApps
 # Insert a LabStartup-Sleep as needed if a pause is desired between batches
 # Or include additional tests for services after each batch and before the next batch
 
+Write-VpodProgress "Starting vVMs" 'GOOD-1'
+Write-Output "$(Get-Date) Starting vApps"
 Start-Nested $vApps
+Write-Output "$(Get-Date) Starting vVMs"
 Start-Nested $VMs
+
+###
+# Disconnect from vCenters
+# Do not do this here if you need to perform other actions within vCenter
+#  in that case, move this block later in the script. Need help? Please ask!
 
 Foreach ($entry in $vCenters) {
 	($vcserver,$type) = $entry.Split(":")
@@ -340,7 +168,9 @@ Foreach ($entry in $vCenters) {
 ##### Lab Startup - STEP #3 (Testing Pings) 
 ##############################################################################
 
-# Wait for hosts in the $Pings array to respond
+###
+# Wait here for all hosts in the $Pings array to respond before continuing
+Write-VpodProgress "Waiting for pings" 'GOOD-2'
 Foreach ($ping in $Pings) {
 	Do { 
 		Test-Ping $ping ([REF]$result)
@@ -352,18 +182,17 @@ Foreach ($ping in $Pings) {
 ##### Lab Startup - STEP #4 (Start/Restart/Stop/Query Services and test ports) 
 ##############################################################################
 
-Write-VpodProgress "Manage Win Svcs" 'GOOD-4'
-
-# Manage Windows services on remote machines
+###
+# Manage Windows services on local or remote Windows machines
+Write-VpodProgress "Manage Win Svcs" 'GOOD-3'
 StartWindowsServices $windowsServices
+Write-Output "$(Get-Date) Finished start Windows services"
 
-Write-Output "$(Get-Date) Finished $action Windows services"
-
-Write-VpodProgress "Manage Linux Svcs" 'GOOD-4'
-
+###
+# Manage Linux services on remote machines
+Write-VpodProgress "Manage Linux Svcs" 'GOOD-3'
 # options are "start", "restart", "stop" or "query"
 $action = "start"
-# Manage Linux services on remote machines
 Foreach ($service in $linuxServices) {
 	($lserver,$lservice) = $service.Split(":")
 	Write-Output "Performing $action $lservice on $lserver"
@@ -374,12 +203,11 @@ Foreach ($service in $linuxServices) {
 #		Write-Host "status is" $status
 	} Until ($result -eq "success")
 }
-
 Write-Output "$(Get-Date) Finished $action Linux services"
 
-Write-VpodProgress "Testing TCP ports" 'GOOD-4'
-
+###
 #Ensure services in the $TCPServices array are answering on specified ports 
+Write-VpodProgress "Testing TCP ports" 'GOOD-3'
 Foreach ($service in $TCPservices) {
 	($server,$port) = $service.Split(":")
 	Do { 
@@ -387,80 +215,57 @@ Foreach ($service in $TCPservices) {
 		LabStartup-Sleep $sleepSeconds
 	} Until ($result -eq "success")
 }
-
 Write-Output "$(Get-Date) Finished testing TCP ports"
 
 ##############################################################################
 ##### Lab Startup - STEP #5 (Testing URLs) 
 ##############################################################################
 
-Write-VpodProgress "Checking URLs" 'GOOD-5'
-
+###
 #Testing URLs
 # Uncomment "-Verbose" to see the HTML returned for pattern matching
-Foreach ($url in $($URLs.Keys)) {
+Write-VpodProgress "Checking URLs" 'GOOD-4'
+Foreach ($entry in $URLs) {
+	($url,$response) = $entry.Split(",")
 	Do { 
-		Test-URL $url $URLs[$url] ([REF]$result) # -Verbose
+		Test-URL $url $response ([REF]$result) # -Verbose
 		LabStartup-Sleep $sleepSeconds
 	} Until ($result -eq "success")
 }
 
+##############################################################################
+##### Lab Startup - STEP #6 (Final validation) 
+##############################################################################
 
-#Write-VpodProgress "Starting Additional Tests" 'GOOD-5'
-## Any final checks here. Maybe you need to check something after the
-## services are started/restarted.
+###
+# Add final checks here that are required for your vPod to be marked READY
+# Maybe you need to check something after the services are started/restarted.
 
-# example RunWinCmd (Note this is commented out!)
-<# 
+Write-VpodProgress "Starting Additional Tests" 'GOOD-5'
 
-$wcmd = "ipconfig /all"
-Do { 
-		# optionally include a remote machine name.
-		# by default it uses $vcuser and $password but a non-domain administrator user and password can be specified
-		# PowerShell scripts cannot be run remotely. Call the PS script from a bat.
-		$output = RunWinCmd $wcmd ([REF]$result) # remoteServer remoteServer\Administrator VMware1!
-		ForEach ($line in $output) {
-		    Write-Output $line
-		}
-		LabStartup-Sleep 5
-	} Until ($result -eq "success")
-
-#>
-
-# example copy a file to or from Linux machine using pscp.exe
-# you must have pscp.exe in the location specified by $pscpPath
-# Note this example is commented out!
-
-# use the pscp conventions for source and destination files
-# remote to remote is not allowed
-# source must be a regular file and not a folder
-# destination can be a folder
-<#
-
-$source = 'full-sles-01a.corp.local:/tmp/linuxfile.log'
-$dest =  Join-Path $labStartupRoot 'linuxfile.log'
-Write-Output "Copying $source to $dest..."
-$msg = Invoke-Pscp -login $linuxUser -passwd $linuxPassword -sourceFile $source -destFile $dest
-Write-Output $msg
-
-#>
+Write-Output "$(Get-Date) Running Additional Tests"
 
 Write-VpodProgress "Finished Additional Tests" 'GOOD-5'
 
+###
 # create the Scheduled Task to run LabStartup at the interval indicated and record initial ready time
 If ( -Not $LabCheck ) {
 	Write-Host "Creating Windows Scheduled Task to run LabStartup every $LabCheckInterval hours..."
-	$LabCheckTask = Create-LabCheck-Task $LabCheckInterval
+	$LabCheckTask = Create-LabCheckTask $LabCheckInterval
 	# Since vPodRouter might be rebooted, record initial ready time for LabCheck
 	$readyTime = [Math]::Round( (Get-RuntimeSeconds $startTime) / 60)
 	Set-Content -Value ($readyTime) -Path $readyTimeFile
 }
 
+###
+# EXPERIMENTAL
 # try to determine current cloud using vPodRouter guestinfo
 $cloudInfo = Get-CloudInfo
 Write-Host $cloudInfo
 
-#Report final state and duration
+###
+# Report Ready state and duration of run
+# NOTE: setting READY marks the DesktopInfo badge GREEN
 Write-VpodProgress "Ready" 'READY'
 Write-Output $( "$(Get-Date) LabStartup Finished - runtime was {0:N0} minutes." -f  ((Get-RuntimeSeconds $startTime) / 60) )
 
