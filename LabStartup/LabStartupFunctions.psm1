@@ -1,9 +1,9 @@
 <#
 	LabStartup Functions *Module* for VMware Hands-on Labs
 	
-	2017-12-05-01
+	2017-12-05-02
 	
-	Version 1.01
+	Version 1.02
 #>
 
 #### HOL Variables ####
@@ -775,20 +775,33 @@ Function Test-URL {
 		#Disable SSL validation (usually a BAD thing... but this is a LAB)
 		[System.Net.ServicePointManager]::ServerCertificateValidationCallback = {$true}
 		
-		Try {
-			$wc = (New-Object Net.WebClient).DownloadString($url)
-			If( $wc -match $lookup ) {
-				Write-Output "Successfully connected to $url"
-				$result.value = "success"
-			} Else {
-				Write-Output "Connected to $url but lookup ( $lookup ) did not match"
-				Write-Verbose $wc
+		try { 
+			$result.value = "fail" 
+		} 
+		catch { 
+			write-host "result undefined, attempting definition for interactive simplicity"
+			$result = [ref](New-Variable tempResult)
+		}
+		
+		If( $url -ne '' ) {
+			Try {
+				$wc = (New-Object Net.WebClient).DownloadString($url)
+				If( $wc -match $lookup ) {
+					Write-Output "Successfully connected to $url"
+					$result.value = "success"
+				} Else {
+					Write-Output "Connected to $url but lookup ( $lookup ) did not match"
+					Write-Verbose $wc
+					$result.value = "fail"
+				}
+			}
+			Catch {
+				Write-Output "URL $url not accessible"
+				Write-Output "Error occured: $_"
 				$result.value = "fail"
 			}
-		}
-		Catch {
-			Write-Output "URL $url not accessible"
-			Write-Output "Error occured: $_"
+		} Else {
+			Write-Output "No URL provided: $url "
 			$result.value = "fail"
 		}
 		#Reset default SSL validation behavior
