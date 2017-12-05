@@ -1,9 +1,9 @@
 <#
-	LabStartup Functions Module for VMware Hands-on Labs
+	LabStartup Functions *Module* for VMware Hands-on Labs
 	
-	2017-09-26-02
+	2017-12-05-01
 	
-	Version 1.0
+	Version 1.01
 #>
 
 #### HOL Variables ####
@@ -219,6 +219,7 @@ Function Init {
 	Initialize the module
 #>
 	$global:startTime = $(Get-Date)
+	$global:statusFile = $statusFile
 } #END Init
 Export-ModuleMember -Function Init
 
