@@ -13,7 +13,6 @@
 							Version 1.02 - 3 August 2016
 							Version 1.03 - 16 February 2017
 							Version 1.04 - 17 February 2017
-							Version 1.1 - 17 February 2017
  
 .EXAMPLE			.\vPodChecker.ps1
 
