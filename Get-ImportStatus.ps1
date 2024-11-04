@@ -39,8 +39,8 @@ Function Get-ImportStatus {
 					$catalog_name = "NONE"
 				}
 				Write-Verbose "read $template from $catalog_name"
-				$all_stats = $vp.ExtensionData.Files.File | select Name, Size, @{N="SizeGB";E={$_.Size/$BYTES_PER_GB}},BytesTransferred, @{N="TransferredGB";E={$_.BytesTransferred/$BYTES_PER_GB}}
-				$remaining_stats = $all_stats| where { $_.Size -ne $_.BytesTransferred }
+				$all_stats = $vp.ExtensionData.Files.File | Select-Object Name, Size, @{N="SizeGB";E={$_.Size/$BYTES_PER_GB}},BytesTransferred, @{N="TransferredGB";E={$_.BytesTransferred/$BYTES_PER_GB}}
+				$remaining_stats = $all_stats| Where-Object { $_.Size -ne $_.BytesTransferred }
 				if( $all_stats.Length -gt 0 ) {
 					$total_gb_to_transfer = ($all_stats | Measure-Object -Property SizeGB -sum).Sum
 					$total_gb_remaining = ($remaining_stats | Measure-Object -Property SizeGB -sum).Sum
