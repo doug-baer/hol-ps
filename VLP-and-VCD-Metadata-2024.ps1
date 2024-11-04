@@ -11,19 +11,27 @@
 
 
 #create a report of current metadata
-$report = @()
-foreach ($vp in $pods ) {
-  $data = Get-CIMetaData -CIObject $vp
-  $line = "" | Select-Object Pod,Catalog,networkTag1,vappNetwork1
-  $line.pod = $vp.Name
-  $line.catalog = $vp.Catalog.Name
-  $nettag = $data | where { $_.Key -eq "networkTag1" }
-  if( $nettag ) { $line.networkTag1 = $nettag.Value }
-  $vappnet = $data | where { $_.Key -eq "vappNetwork1" }
-  if( $vappnet ) { $line.vappNetwork1 = $vappnet.Value }
-  $report += $line
-} ; $report
-
+Function Report-HolMetadata {
+	param(
+		[parameter(Mandatory=$true,ValueFromPipeline=$true,ValueFromPipelineByPropertyName=$true)]
+		[String]$Catalog
+	)
+	$report = @()
+	$pods = Get-CIVappTemplate -Catalog $Catalog
+	Write-Host -ForegroundColor Green "Templates read from catalog $Catalog: $($pods.Length)"
+	foreach ($vp in $pods ) {
+		$data = Get-CIMetaData -CIObject $vp
+		$line = "" | Select-Object Pod,Catalog,networkTag1,vappNetwork1
+		$line.pod = $vp.Name
+		$line.catalog = $vp.Catalog.Name
+		$nettag = $data | where { $_.Key -eq "networkTag1" }
+		if( $nettag ) { $line.networkTag1 = $nettag.Value }
+		$vappnet = $data | where { $_.Key -eq "vappNetwork1" }
+		if( $vappnet ) { $line.vappNetwork1 = $vappnet.Value }
+		$report += $line
+	}
+	return $report
+}
 
 #Set the two metadata items used by the VMware Lab Platform to automatically connect deployed vApps to the network
 foreach ($vp in $pods ) {
@@ -36,9 +44,9 @@ foreach ($vp in $pods ) {
 # Used by the above loop to get the name of the vApp Network (filters based on known HOL primary vApp network names)
 Function Get-vAppNetName {
 	param(
-        [parameter(Mandatory=$true,ValueFromPipeline=$true,ValueFromPipelineByPropertyName=$true)]
-            [PSObject[]]$CIObject
-        )
+		[parameter(Mandatory=$true,ValueFromPipeline=$true,ValueFromPipelineByPropertyName=$true)]
+		[PSObject[]]$CIObject
+	)
 	Process {
 		$sections = $CIObject.ExtensionData.Section
 		foreach( $s in $sections ) {
