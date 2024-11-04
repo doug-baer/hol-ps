@@ -13,10 +13,7 @@ Function Get-ImportStatus {
 .EXAMPLE
 		PS C:\> Get-ImportStatus -Catalog "2025-Labs" -Template "HOL-2540-v0.20"
 #>
-	[CmdletBinding(
-		SupportsShouldProcess=$true,
-		ConfirmImpact="High"
-	)]
+	[CmdletBinding()]
 	param(
 			[parameter(Mandatory=$true,ValueFromPipeline=$true,ValueFromPipelineByPropertyName=$true)]
 					$Template,
@@ -30,7 +27,7 @@ Function Get-ImportStatus {
 			if( $catalog ) {
 				$cat = Get-catalog $Catalog
 				$catalog_name = $Catalog
-				$pods = Get-civapptemplate -Name $Template -Catalog $Catalog
+				$pods = Get-civapptemplate -Name $Template -Catalog $cat
 			} else {
 				$pods = Get-civapptemplate -Name $Template
 			}
@@ -48,7 +45,7 @@ Function Get-ImportStatus {
 					$total_gb_to_transfer = ($all_stats | Measure-Object -Property SizeGB -sum).Sum
 					$total_gb_remaining = ($remaining_stats | Measure-Object -Property SizeGB -sum).Sum
 					$total_gb_transferred = ($all_stats | Measure-Object -Property TransferredGB -sum).Sum
-					$percent_remaining = 100*($remaining_stats | Measure-Object -property Size -sum).sum / ($vp.ExtensionData.Files.File | Measure-Object -property Size -sum).Sum
+					#$percent_remaining = 100*($remaining_stats | Measure-Object -property Size -sum).sum / ($vp.ExtensionData.Files.File | Measure-Object -property Size -sum).Sum
 					Write-Host -ForegroundColor DarkBlue "=== $template in $catalog_name ==================================="
 					$outline = "Remaining {0:N0} of {1:N0} files, {2:F2} / {3:F2} GB. Finished: ({4:P1})" -f $remaining_stats.Length,($vp.ExtensionData.Files.File).Length,$total_gb_remaining,$total_gb_to_transfer,($total_gb_transferred/$total_gb_to_transfer)
 					Write-Output $outline
@@ -57,13 +54,13 @@ Function Get-ImportStatus {
 							$all_stats | Sort-Object -Property "SizeGB" -Descending | Format-Table -AutoSize
 						} 
 						else {
-							$remaining_stats | where { $_.BytesTransferred -ne 0 } | Format-Table -AutoSize
+							$remaining_stats | Where-Object { $_.BytesTransferred -ne 0 } | Format-Table -AutoSize
 						}
 					}
 				}
 				else {
 					#check for in-flight vdcUploadOvfContents task
-					$import_tasks = $vp.ExtensionData.Tasks.Task | where {($_.OperationName -eq "vdcUploadOvfContents") -Or ($_.OperationName -eq "vdcCopyTemplate")} | select Operation, Status, Progress, StartTime
+					$import_tasks = $vp.ExtensionData.Tasks.Task | Where-Object {($_.OperationName -eq "vdcUploadOvfContents") -Or ($_.OperationName -eq "vdcCopyTemplate")} | Select-Object Operation, Status, Progress, StartTime
 					if( $import_tasks ) {
 						Write-Host -ForegroundColor Blue "=== $template in $catalog_name ==================================="
 						foreach ( $import_task in $import_tasks ) {
