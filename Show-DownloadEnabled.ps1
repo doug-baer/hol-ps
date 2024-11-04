@@ -13,7 +13,7 @@ function Show-DownloadEnabled ()
 		
 		foreach ($p in $vapps) { 
 			$pv = Get-CIView $p
-			$dlHref = $pv.Link | where {$_.Rel -eq "download:identity"}
+			$dlHref = $pv.Link | Where-Object {$_.Rel -eq "download:identity"}
 			Write-Verbose "$($p.name) --- $($dlHref.href)"
 			if( $dlHref.href -like "http*" ) {
 				write-Verbose "ENABLED: $($p.name)"
